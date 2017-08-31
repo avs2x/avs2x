@@ -1411,7 +1411,11 @@ Void TComPrediction::xPredInterUni ( TComDataCU* pcCU, UInt uiPartAddr, Int iWid
 #if rd_sym
   if (pcCU->getInterDir(uiPartAddr) == INTER_SYM)
   {
+#if  YQH_B_INTER
+	  if (eRefPic == REF_PIC_1)
+#else
 	  if (eRefPic = REF_PIC_1)
+#endif
 	  {
 		  Int deltaP, TRp, DistanceIndexFw, DistanceIndexBw, refframe, deltaPB;
 		  if (pcCU->getPicture()->getPictureType() == B_PICTURE)//需要确认是否正确
@@ -1514,12 +1518,17 @@ Void TComPrediction::xPredInterDual(TComDataCU* pcCU, UInt uiPartAddr, Int iWidt
 #endif
 
 	//  Set motion
-
+#if F_L1_FOR_DHP_SYC
+	pcCU->getCUMvField(REF_PIC_1)->setAllMv(cMvDual[REF_PIC_1], pcCU->getPartitionSize(0), uiPartAddr, iPartIdx, 0);
+	pcCU->getCUMvField(REF_PIC_1)->setAllRefIdx(iRefIdxDual[REF_PIC_1], pcCU->getPartitionSize(0), uiPartAddr, iPartIdx, 0);
+	//motionCompensation(pcCU, &pcYuvPredDual[REF_PIC_1], REF_PIC_0, iPartIdx);
+	xPredInterUni(pcCU, uiPartAddr, iWidth, iHeight, REF_PIC_1, m_acYuvPredDual[REF_PIC_1], iPartIdx);
+#else
 	pcCU->getCUMvField(REF_PIC_0)->setAllMv(cMvDual[REF_PIC_1], pcCU->getPartitionSize(0), uiPartAddr, iPartIdx, 0);
 	pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(iRefIdxDual[REF_PIC_1], pcCU->getPartitionSize(0), uiPartAddr, iPartIdx, 0);
 	//motionCompensation(pcCU, &pcYuvPredDual[REF_PIC_1], REF_PIC_0, iPartIdx);
 	xPredInterUni(pcCU, uiPartAddr, iWidth, iHeight, REF_PIC_0, m_acYuvPredDual[REF_PIC_1], iPartIdx);
-
+#endif
 	pcCU->getCUMvField(REF_PIC_0)->setAllMv(cMvDual[REF_PIC_0], pcCU->getPartitionSize(0), uiPartAddr, iPartIdx, 0);
 	pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(iRefIdxDual[REF_PIC_0], pcCU->getPartitionSize(0), uiPartAddr, iPartIdx, 0);
 	//motionCompensation(pcCU, &pcYuvPredDual[REF_PIC_0], REF_PIC_0, iPartIdx);

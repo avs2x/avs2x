@@ -112,6 +112,7 @@ public:
     m_iVer -= rcMv.m_iVer;
     return  *this;
   }
+
   
   const TComMv& operator>>= (const Int i)
   {

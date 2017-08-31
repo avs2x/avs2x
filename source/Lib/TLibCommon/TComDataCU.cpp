@@ -257,9 +257,10 @@ Void TComDataCU::destroy()
 
 #endif
 
-
+#if !CLOSE_DESTROY_WHEN_DEC
     m_acCUMvField[REF_PIC_0].destroy();
     m_acCUMvField[REF_PIC_1].destroy();
+#endif
     
   }
   
@@ -2842,14 +2843,22 @@ Void TComDataCU::setSkipMotionVectorPredictor(UInt uiAbsPartIdx)
 		rcAboveRightMvHv[0][hv] = iAboveRightCU ? iAboveRightCU->getCUMvField(REF_PIC_0)->getMv(iAboveRightIdx)[hv] : 0;
 		rcAboveLeftMvHv[0][hv] = iAboveLeftCU ? iAboveLeftCU->getCUMvField(REF_PIC_0)->getMv(iAboveLeftIdx)[hv] : 0;
 		rcLeftCU1MvHv[0][hv] = pLeftCU1 ? pLeftCU1->getCUMvField(REF_PIC_0)->getMv(uiLeftIdx1)[hv] : 0;
+#if B_MHBSKIP_SYC
+		rcAboveCU1MvHv[0][hv] = pAboveCU1 ? pAboveCU1->getCUMvField(REF_PIC_0)->getMv(uiAboveIdx1)[hv] : 0;
+#else
 		rcAboveCU1MvHv[0][hv] = pAboveCU1 ? pAboveCU1->getCUMvField(REF_PIC_0)->getMv(uiLeftIdx1)[hv] : 0;
+#endif
 
 		rcLeftMvHv[1][hv] = pLeftCU ? pLeftCU->getCUMvField(REF_PIC_1)->getMv(uiLeftIdx)[hv] : 0;
 		rcAboveMvHv[1][hv] = pAboveCU ? pAboveCU->getCUMvField(REF_PIC_1)->getMv(uiAboveIdx)[hv] : 0;
 		rcAboveRightMvHv[1][hv] = iAboveRightCU ? iAboveRightCU->getCUMvField(REF_PIC_1)->getMv(iAboveRightIdx)[hv] : 0;
 		rcAboveLeftMvHv[1][hv] = iAboveLeftCU ? iAboveLeftCU->getCUMvField(REF_PIC_1)->getMv(iAboveLeftIdx)[hv] : 0;
 		rcLeftCU1MvHv[1][hv] = pLeftCU1 ? pLeftCU1->getCUMvField(REF_PIC_1)->getMv(uiLeftIdx1)[hv] : 0;
+#if B_MHBSKIP_SYC
+		rcAboveCU1MvHv[1][hv] = pAboveCU1 ? pAboveCU1->getCUMvField(REF_PIC_1)->getMv(uiAboveIdx1)[hv] : 0;
+#else
 		rcAboveCU1MvHv[1][hv] = pAboveCU1 ? pAboveCU1->getCUMvField(REF_PIC_1)->getMv(uiLeftIdx1)[hv] : 0;
+#endif
 
 		for (Int i = 0; i < 2; i++)
 		{
@@ -2872,81 +2881,81 @@ Void TComDataCU::setSkipMotionVectorPredictor(UInt uiAbsPartIdx)
 
 		if (modeInfo[j] == INTER_BID)
 		{
-			m_cTempForwardBSkipMv[0][INTER_BID] = pmv[0][0][j];
-			m_cTempForwardBSkipMv[1][INTER_BID] = pmv[0][1][j];
-			m_cTempBackwardBSkipMv[0][INTER_BID] = pmv[1][0][j];
-			m_cTempBackwardBSkipMv[1][INTER_BID] = pmv[1][1][j];
+#if B_MHBSKIP_SYC
+			//copy the whole function
+#endif
+			m_cTempForwardBSkipMv[INTER_BID].setHor(pmv[0][0][j]);
+			m_cTempForwardBSkipMv[INTER_BID].setVer(pmv[0][1][j]);
+			m_cTempBackwardBSkipMv[INTER_BID].setHor(pmv[1][0][j]);
+			m_cTempBackwardBSkipMv[INTER_BID].setVer(pmv[1][1][j]);
 			bid_flag++;
 			if (bid_flag == 1) {
 				bid2 = j;
 			}
 		}
 		else if (modeInfo[j] == INTER_SYM) {
-			m_cTempForwardBSkipMv[0][INTER_SYM] = pmv[0][0][j];
-			m_cTempForwardBSkipMv[1][INTER_SYM] = pmv[0][1][j];
-			m_cTempBackwardBSkipMv[0][INTER_SYM] = pmv[1][0][j];
-			m_cTempBackwardBSkipMv[1][INTER_SYM] = pmv[1][1][j];
+			m_cTempForwardBSkipMv[INTER_SYM].setHor(pmv[0][0][j]);
+			m_cTempForwardBSkipMv[INTER_SYM].setVer(pmv[0][1][j]);
+			m_cTempBackwardBSkipMv[INTER_SYM].setHor(pmv[1][0][j]);
+			m_cTempBackwardBSkipMv[INTER_SYM].setVer(pmv[1][1][j]);
 			sym_flag++;
 		}
 		else if (modeInfo[j] == INTER_BACKWARD) {
-			m_cTempBackwardBSkipMv[0][INTER_BACKWARD] = pmv[0][0][j];
-			m_cTempBackwardBSkipMv[1][INTER_BACKWARD] = pmv[0][1][j];
+			m_cTempBackwardBSkipMv[INTER_BACKWARD].setHor(pmv[0][0][j]);
+			m_cTempBackwardBSkipMv[INTER_BACKWARD].setVer(pmv[0][1][j]);
 			bw_flag++;
 		}
 		else if (modeInfo[j] == INTER_FORWARD) {
-			m_cTempForwardBSkipMv[0][INTER_FORWARD] = pmv[1][0][j];
-			m_cTempForwardBSkipMv[1][INTER_FORWARD] = pmv[1][1][j];
+			m_cTempForwardBSkipMv[INTER_FORWARD].setHor(pmv[1][0][j]);
+			m_cTempForwardBSkipMv[INTER_FORWARD].setVer(pmv[1][1][j]);
 			fw_flag++;
 		}
 	}
 	if (bid_flag == 0 && fw_flag != 0 && bw_flag != 0)
 	{
-		m_cTempBackwardBSkipMv[0][INTER_BID] = m_cTempBackwardBSkipMv[0][INTER_BACKWARD];
-		m_cTempBackwardBSkipMv[1][INTER_BID] = m_cTempBackwardBSkipMv[1][INTER_BACKWARD];
-		m_cTempForwardBSkipMv[0][INTER_BID] = m_cTempForwardBSkipMv[0][INTER_FORWARD];
-		m_cTempForwardBSkipMv[1][INTER_BID] = m_cTempForwardBSkipMv[1][INTER_FORWARD];
+		m_cTempBackwardBSkipMv[INTER_BID]=m_cTempBackwardBSkipMv[INTER_BACKWARD];
+		
+		m_cTempForwardBSkipMv[INTER_BID] = m_cTempForwardBSkipMv[INTER_FORWARD];
+		
 	}
 
 	if (sym_flag == 0 && bid_flag > 1)
 	{
-		m_cTempBackwardBSkipMv[0][INTER_SYM] = pmv[0][0][bid2];
-		m_cTempBackwardBSkipMv[1][INTER_SYM] = pmv[0][1][bid2];
-		m_cTempForwardBSkipMv[0][INTER_SYM] = pmv[1][0][bid2];
-		m_cTempForwardBSkipMv[1][INTER_SYM] = pmv[1][1][bid2];
+		m_cTempBackwardBSkipMv[INTER_SYM].setHor(pmv[0][0][bid2]);
+		m_cTempBackwardBSkipMv[INTER_SYM].setVer(pmv[0][1][bid2]);
+		m_cTempForwardBSkipMv[INTER_SYM].setHor(pmv[1][0][bid2]);
+		m_cTempForwardBSkipMv[INTER_SYM].setVer(pmv[1][1][bid2]);
 	}
 	else if (sym_flag == 0 && bw_flag != 0)
 	{
-		m_cTempBackwardBSkipMv[0][INTER_SYM] = m_cTempBackwardBSkipMv[0][INTER_BACKWARD];
-		m_cTempBackwardBSkipMv[1][INTER_SYM] = m_cTempBackwardBSkipMv[1][INTER_BACKWARD];
-		m_cTempForwardBSkipMv[0][INTER_SYM] = -m_cTempForwardBSkipMv[0][INTER_BACKWARD];
-		m_cTempForwardBSkipMv[1][INTER_SYM] = -m_cTempForwardBSkipMv[1][INTER_BACKWARD];
+		m_cTempBackwardBSkipMv[INTER_SYM] = m_cTempBackwardBSkipMv[INTER_BACKWARD];
+		m_cTempForwardBSkipMv[INTER_SYM].setHor( -m_cTempForwardBSkipMv[INTER_BACKWARD].getHor());
+		m_cTempForwardBSkipMv[INTER_SYM].setVer(-m_cTempForwardBSkipMv[INTER_BACKWARD].getVer());
 	}
 	else if (sym_flag == 0 && fw_flag != 0)
 	{
-		m_cTempBackwardBSkipMv[0][INTER_SYM] = -m_cTempBackwardBSkipMv[0][INTER_FORWARD];
-		m_cTempBackwardBSkipMv[1][INTER_SYM] = -m_cTempBackwardBSkipMv[1][INTER_FORWARD];
-		m_cTempForwardBSkipMv[0][INTER_SYM] = m_cTempForwardBSkipMv[0][INTER_FORWARD];
-		m_cTempForwardBSkipMv[1][INTER_SYM] = m_cTempForwardBSkipMv[1][INTER_FORWARD];
+		m_cTempBackwardBSkipMv[INTER_SYM].setHor( -m_cTempBackwardBSkipMv[INTER_FORWARD].getHor());
+		m_cTempBackwardBSkipMv[INTER_SYM].setVer( -m_cTempBackwardBSkipMv[INTER_FORWARD].getVer());
+		m_cTempForwardBSkipMv[INTER_SYM] = m_cTempForwardBSkipMv[INTER_FORWARD];
 	}
 	if (bw_flag == 0 && bid_flag > 1)
 	{
-		m_cTempBackwardBSkipMv[0][INTER_BACKWARD] = pmv[0][0][bid2];
-		m_cTempBackwardBSkipMv[1][INTER_BACKWARD] = pmv[0][1][bid2];
+		m_cTempBackwardBSkipMv[INTER_BACKWARD].setHor(pmv[0][0][bid2]);
+		m_cTempBackwardBSkipMv[INTER_BACKWARD].setVer(pmv[0][1][bid2]);
 	}
 	else if (bw_flag == 0 && bid_flag != 0)
 	{
-		m_cTempBackwardBSkipMv[0][INTER_BACKWARD] = m_cTempBackwardBSkipMv[0][INTER_BID];
-		m_cTempBackwardBSkipMv[1][INTER_BACKWARD] = m_cTempBackwardBSkipMv[1][INTER_BID];
+		m_cTempBackwardBSkipMv[INTER_BACKWARD] = m_cTempBackwardBSkipMv[INTER_BID];
+		
 	}
 	if (fw_flag == 0 && bid_flag > 1)
 	{
-		m_cTempBackwardBSkipMv[0][INTER_FORWARD] = pmv[1][0][bid2];
-		m_cTempBackwardBSkipMv[1][INTER_FORWARD] = pmv[1][1][bid2];
+		m_cTempBackwardBSkipMv[INTER_FORWARD].setHor(pmv[1][0][bid2]);
+		m_cTempBackwardBSkipMv[INTER_FORWARD].setVer(pmv[1][1][bid2]);
 	}
 	else if (fw_flag == 0 && bid_flag != 0)
 	{
-		m_cTempForwardBSkipMv[0][INTER_FORWARD] = m_cTempForwardBSkipMv[0][INTER_BID];
-		m_cTempForwardBSkipMv[1][INTER_FORWARD] = m_cTempForwardBSkipMv[1][INTER_BID];
+		m_cTempForwardBSkipMv[INTER_FORWARD] = m_cTempForwardBSkipMv[INTER_BID];
 	}
 	//m_cTempForwardBSkipMv 现在还没有地方写这个变量的条用函数
 
@@ -3095,7 +3104,6 @@ TComMvField TComDataCU::getMvFieldPred(UInt uiAbsPartIdx, RefPic eRefPic, Int iR
 
 #endif
 	//else if ()
-  
 	//test
 	rcLeftMvHv = pLeftCU ? pLeftCU->getCUMvField(eRefPic)->getMv(uiLeftIdx) : mv0;
 	//rcLeftMvHv = mv0;

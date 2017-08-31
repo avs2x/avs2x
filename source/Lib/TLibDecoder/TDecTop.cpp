@@ -40,6 +40,9 @@ TDecTop::TDecTop()
   m_bGopSizeSet   = false;
   m_iMaxRefPicNum = 0;
   m_uiValidPS = 0;
+#if POC_256_BUG
+  m_prevTid0POC = 0;
+#endif
 }
 
 TDecTop::~TDecTop()
@@ -206,7 +209,15 @@ Void TDecTop::xGetNewPicBuffer(TComPicture* pcPicture, TComPic*& rpcPic)
   }
 #endif
 }
-
+#if POC_256_BUG
+Void  TDecTop::xUpdatePreviousTid0POC(TComPicHeader *pcPictureHeader)
+{
+	if (pcPictureHeader->getPOC() % 8 == 0)
+	{
+		m_prevTid0POC = pcPictureHeader->getPOC();
+	}
+}
+#endif
 Void TDecTop::decode (Bool bEos, TComBitstream* pcBitstream, UInt& ruiPOC, TComList<TComPic*>*& rpcListPic)
 {
   rpcListPic = NULL;
@@ -264,7 +275,12 @@ Void TDecTop::decode (Bool bEos, TComBitstream* pcBitstream, UInt& ruiPOC, TComL
 #if AVS3_PIC_HEADER_ZL
   m_pcPicHeader->initPicHeader();
   m_pcPicHeader->setSeqHeader(&m_cSPS);
+#if POC_256_BUG
+  m_cEntropyDecoder.decodePicHeader(m_pcPicHeader, m_prevTid0POC);
+  xUpdatePreviousTid0POC(m_pcPicHeader);
+#else
   m_cEntropyDecoder.decodePicHeader(m_pcPicHeader);
+#endif
 #endif
 #if AVS3_SLICE_HEADER_SYC
   m_cEntropyDecoder.decodePictureHeader (m_apcPicturePilot, m_pcPicHeader);

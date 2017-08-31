@@ -159,6 +159,10 @@ Void TComCUMvField::setAllMv( TComMv& rcMv, PartSize ePartMode, Int iPartAddr, I
 {
   Int i;
   TComMv* pcMv = m_pcMv + iPartAddr;
+  if (iPartAddr >= 256)
+  {
+	  printf("!!");
+  }
   register TComMv cMv = rcMv;
   Int iNumPartition = m_uiNumPartition >> (uiDepth<<1);
   

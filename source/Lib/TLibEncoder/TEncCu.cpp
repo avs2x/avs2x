@@ -426,25 +426,40 @@ Void TEncCu::xCompressCU( TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, UInt u
 	  min_rd_cost = xCheckRDCostSkip_NO_QT(rpcBestCU, rpcTempCU, SIZE_2Nx2N, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
 	  ////
 #if F_MHPSKIP_SYC
-	  if (pcPic->getPicture()->getSPS()->getMultiHypothesisSkipEnableFlag() == true)
+	  if (
+#if B_MHBSKIP_SYC
+		  (
+#endif	  
+		  pcPic->getPicture()->getSPS()->getMultiHypothesisSkipEnableFlag() == true
+#if B_MHBSKIP_SYC
+		  && (pcPic->getPicture()->getPictureType() == F_PICTURE)) || pcPic->getPicture()->getPictureType() == B_PICTURE
+#endif
+		  
+		  )//MHPSKIP+MHBSKIP
 	  {
+#if B_MHBSKIP_SYC
+		  min_rd_cost = xCheckRDCostMHSkip(rpcBestCU, rpcTempCU, SIZE_2Nx2N, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
+		  min_rd_cost = xCheckRDCostMHSkip_NO_QT(rpcBestCU, rpcTempCU, SIZE_2Nx2N, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
+
+#else
 		  min_rd_cost = xCheckRDCostMHPSkip(rpcBestCU, rpcTempCU, SIZE_2Nx2N, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
 		  min_rd_cost = xCheckRDCostMHPSkip_NO_QT(rpcBestCU, rpcTempCU, SIZE_2Nx2N, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
+#endif
 	  }
 #endif
 	  min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_2Nx2N, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
 
-// 	  min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_2NxN, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
-// 	  min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_Nx2N, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
-// 	  if (rpcTempCU->getLog2CUSize(0) > 3)
-// 	  {
-// 		 ////min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_NxN, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
-// 
-// 		  min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_2NxnU, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
-// 		  min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_2NxnD, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
-// 		  min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_nLx2N, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
-// 		  min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_nRx2N, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
-// 	  }
+    min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_2NxN, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
+    min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_Nx2N, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
+  if (rpcTempCU->getLog2CUSize(0) > 3)
+  {
+	 ////min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_NxN, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
+
+	  min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_2NxnU, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
+	  min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_2NxnD, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
+	  min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_nLx2N, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
+	  min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_nRx2N, min_rd_cost, split_cost, split_cost_up, split_rd_cost, false);	rpcTempCU->initEstData(uiDepth);
+  }
 #endif
 #else
 	  min_rd_cost = xCheckRDCostInter(rpcBestCU, rpcTempCU, SIZE_nRx2N, min_rd_cost, split_cost, split_cost_up, split_rd_cost, true); //true or false多模式需改造 
@@ -861,6 +876,114 @@ Double TEncCu::xCheckRDCostSkip_NO_QT(TComDataCU*& rpcBestCU, TComDataCU*& rpcTe
 }
 
 #endif
+
+#if B_MHBSKIP_SYC
+Double TEncCu::xCheckRDCostMHSkip(TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, PartSize ePartSize, Double minRdCostD, Double split_cost_down, Double split_cost_up, Double splitRdCost, Bool Flag)
+{
+	UInt uiRecallNUm = (rpcTempCU->getPicture()->getPictureType() == F_PICTURE) ? MH_PSKIP_NUM : DIRECTION;
+
+	for (UInt i = 0; i < uiRecallNUm; i++)
+	{
+#if B_MHBSKIP_SYC
+		if (rpcTempCU->getPicture()->getPictureType() == B_PICTURE && i == 2)
+		{
+			i++;//no SYM
+		}
+#endif
+
+		UInt uiDepth = rpcTempCU->getDepth(0);
+
+		rpcTempCU->setInterSkipmodeSubParts(4 + i, 0, uiDepth);
+
+		rpcTempCU->setDepthSubParts(uiDepth, 0);
+		rpcTempCU->setPredModeSubParts(MODE_DIRECT, 0, uiDepth);
+		rpcTempCU->setPartSizeSubParts(SIZE_2Nx2N, 0, uiDepth);
+
+		m_pcPredSearch->predSkipSearch(rpcTempCU, m_pcOrigYuv, m_pcPredYuvTemp);
+		m_pcPredSearch->encodeResAndCalcRdInterCU(rpcTempCU, m_pcOrigYuv, m_pcPredYuvTemp, m_pcResiYuvTemp, m_pcResiYuvBest, m_pcRecoYuvTemp, true);
+		if (Flag)
+			rpcTempCU->getTotalCost() = m_pcRdCost->calcRdCost(rpcTempCU->getTotalBits(), rpcTempCU->getTotalDistortion()) + split_cost_up;
+		else
+			rpcTempCU->getTotalCost() = m_pcRdCost->calcRdCost(rpcTempCU->getTotalBits(), rpcTempCU->getTotalDistortion()) + split_cost_up;
+
+		if (!(minRdCostD > 1e100) && Flag)
+		{
+			rpcBestCU->getTotalCost() = minRdCostD + split_cost_down;
+		}
+		else
+			rpcBestCU->getTotalCost() = minRdCostD;
+
+		//test
+		curr_cbfY = rpcTempCU->getCbf(0, TEXT_LUMA, 0);
+		curr_cbfU = rpcTempCU->getCbf(0, TEXT_CHROMA_U, 0);
+		curr_cbfV = rpcTempCU->getCbf(0, TEXT_CHROMA_V, 0);
+
+#if DIRECTSKIP_BUG_YQH
+		if (!(rpcTempCU->getCbf(0, TEXT_LUMA, 0) || rpcTempCU->getCbf(0, TEXT_CHROMA_U, 0) || rpcTempCU->getCbf(0, TEXT_CHROMA_V, 0)))
+		{
+			rpcTempCU->setPredModeSubParts(MODE_SKIP, 0, uiDepth);
+			rpcTempCU->setPartSizeSubParts(SIZE_2Nx2N, 0, uiDepth);
+
+		}
+#endif
+
+		minRdCostD = xCheckBestMode(rpcBestCU, rpcTempCU, splitRdCost, uiDepth);
+		rpcTempCU->initEstData(uiDepth);
+	}
+
+	return minRdCostD;
+
+}
+Double TEncCu::xCheckRDCostMHSkip_NO_QT(TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, PartSize ePartSize, Double minRdCostD, Double split_cost_down, Double split_cost_up, Double splitRdCost, Bool Flag)
+//Void TEncCu::xCheckRDCostSkip_NO_QT(TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, UInt uiSplitbits)
+{
+	UInt uiRecallNUm = (rpcTempCU->getPicture()->getPictureType() == F_PICTURE) ? MH_PSKIP_NUM : DIRECTION;
+	if (curr_cbfY || curr_cbfU || curr_cbfV)
+		//if (rpcBestCU->getCbf(0, TEXT_LUMA, 0) || rpcBestCU->getCbf(0, TEXT_CHROMA_U, 0) || rpcBestCU->getCbf(0, TEXT_CHROMA_V, 0))
+	{
+		for (UInt i = 0; i < uiRecallNUm; i++)
+		{
+#if B_MHBSKIP_SYC
+			if (rpcTempCU->getPicture()->getPictureType() == B_PICTURE && i == 2)
+			{
+				i++;//no SYM
+			}
+#endif
+			UInt uiDepth = rpcTempCU->getDepth(0);
+
+			rpcTempCU->setInterSkipmodeSubParts(4 + i, 0, uiDepth);
+
+			rpcTempCU->setDepthSubParts(uiDepth, 0);
+			rpcTempCU->setPredModeSubParts(MODE_SKIP, 0, uiDepth);
+			rpcTempCU->setPartSizeSubParts(SIZE_2Nx2N, 0, uiDepth);
+
+
+			m_pcPredSearch->predSkipSearch(rpcTempCU, m_pcOrigYuv, m_pcPredYuvTemp);
+			m_pcPredSearch->encodeResAndCalcRdInterCU_NO_QT(rpcTempCU, m_pcOrigYuv, m_pcPredYuvTemp, m_pcResiYuvTemp, m_pcResiYuvBest, m_pcRecoYuvTemp, true);
+			if (Flag)
+				rpcTempCU->getTotalCost() = m_pcRdCost->calcRdCost(rpcTempCU->getTotalBits(), rpcTempCU->getTotalDistortion()) + split_cost_up;
+			else
+				rpcTempCU->getTotalCost() = m_pcRdCost->calcRdCost(rpcTempCU->getTotalBits(), rpcTempCU->getTotalDistortion()) + split_cost_up;
+
+
+			if (!(minRdCostD > 1e100) && Flag)
+			{
+				rpcBestCU->getTotalCost() = minRdCostD + split_cost_down;
+			}
+			else
+				rpcBestCU->getTotalCost() = minRdCostD;
+
+			minRdCostD = xCheckBestMode(rpcBestCU, rpcTempCU, splitRdCost, uiDepth);
+			rpcTempCU->initEstData(uiDepth);
+		}
+		return minRdCostD;
+	}
+
+	return minRdCostD;
+
+}
+
+#else
 #if F_MHPSKIP_SYC
 Double TEncCu::xCheckRDCostMHPSkip(TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, PartSize ePartSize, Double minRdCostD, Double split_cost_down, Double split_cost_up, Double splitRdCost, Bool Flag)
 {
@@ -952,6 +1075,7 @@ Double TEncCu::xCheckRDCostMHPSkip_NO_QT(TComDataCU*& rpcBestCU, TComDataCU*& rp
 	return minRdCostD;
 
 }
+#endif
 #endif
 #if WLQ_CUSplitFlag_inter
 #if WLQ_rdcost

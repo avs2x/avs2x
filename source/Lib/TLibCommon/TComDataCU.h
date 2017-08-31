@@ -377,6 +377,11 @@ public:
 
 #endif
 
+#if B_MHBSKIP_SYC
+  TComMv getTempForwardBSkipMvPred(Int i) { return m_cTempForwardBSkipMv[i]; }
+  TComMv getTempBackwardBSkipMvPred(Int i) { return m_cTempBackwardBSkipMv[i]; }
+#endif
+
 #if F_DHP_SYC
   Void MV_Scale(TComDataCU *pcCU, TComMv &cMvPred, TComMv tempmv, Int iSrcRef, Int iDstRef);
 #endif

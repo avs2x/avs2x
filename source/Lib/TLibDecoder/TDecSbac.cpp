@@ -57,6 +57,9 @@ TDecSbac::TDecSbac()
 #if F_MHPSKIP_SYC
 , m_cCUInterMHPSKIPSCModel   (1,               1,               NUM_INTER_MHPSKIP_CTX         )
 #endif
+#if B_MHBSKIP_SYC
+, m_cCUInterMHBSKIPSCModel   (1,               1,               NUM_INTER_MHPSKIP_CTX         )
+#endif
 #if F_DHP_SYC
 , m_cCUInterDHPSCModel        (1,              1,               NUM_INTER_DHP_CTX             )
 , m_cCUInterDHPNXNSCModel     (1,              1,               NUM_INTER_DHP_NXN_CTX         )
@@ -124,6 +127,9 @@ Void TDecSbac::resetEntropy          (TComPicture* pcPicture)
 #endif
 #if F_MHPSKIP_SYC
 	m_cCUInterMHPSKIPSCModel.initBuffer();
+#endif
+#if B_MHBSKIP_SYC
+	m_cCUInterMHBSKIPSCModel.initBuffer();
 #endif
 	m_cCUInterDirSCModel.initBuffer        ();
 #if inter_direct_skip_bug1
@@ -223,7 +229,11 @@ Void TDecSbac::parsePPS(TComPPS* pcPPS)
 
 
 #if AVS3_PIC_HEADER_ZL
-Void TDecSbac::parsePicHeader(TComPicHeader*& rpcPicHeader)
+Void TDecSbac::parsePicHeader(TComPicHeader*& rpcPicHeader
+#if POC_256_BUG
+	, Int prevTid0POC
+#endif
+	)
 {
   UInt  uiCode;
 
@@ -322,7 +332,29 @@ Void TDecSbac::parsePicHeader(TComPicHeader*& rpcPicHeader)
   }
 #if RPS_BUG
 #if BUG_816
+#if POC_256_BUG
+  xReadCodeVlc(8, uiCode);
+  Int iPOCLSB = uiCode;
+  Int iPOCMSB = 0;
+  Int maxPOCoff = 1 << 8;
+  Int prevPOCLSB = prevTid0POC & (maxPOCoff - 1);
+  Int prevPOCMSB = prevTid0POC - prevPOCLSB;
+  if (iPOCLSB < prevPOCLSB && abs(iPOCLSB - prevPOCLSB) >= maxPOCoff / 2)
+  {
+	  iPOCMSB = prevPOCMSB + maxPOCoff;
+  }
+  else if (iPOCLSB > prevPOCLSB && abs(iPOCLSB - prevPOCLSB) > maxPOCoff / 2)
+  {
+	  iPOCMSB = prevPOCMSB - maxPOCoff;
+  }
+  else
+  {
+	  iPOCMSB = prevPOCMSB;
+  }
+  rpcPicHeader->setPOC(iPOCMSB + iPOCLSB);
+#else
   xReadCodeVlc(10, uiCode); rpcPicHeader->setPOC(uiCode);
+#endif
 #else
   xReadCodeVlc( 8, uiCode ); rpcPicHeader->setPOC( uiCode );
 #endif
@@ -1424,6 +1456,42 @@ Void TDecSbac::parseInterMHPSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDep
 	return;
 }
 #endif
+#if	B_MHBSKIP_SYC
+Void TDecSbac::parseInterMHBSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
+{
+	//BiContextTypePtr pCTX = (img->currentSlice)->syn_ctx->p_skip_mode_contexts;
+	UInt act_ctx = 0;
+	UInt act_sym = 0;
+	UInt counter = 0;
+	UInt terminate_bit = 0;
+
+	xDecodeBin(terminate_bit, m_cCUInterMHBSKIPSCModel.get(0, 0, act_ctx));
+	while (counter < DIRECTION - 1 && terminate_bit == 0) {
+		act_sym++;
+		act_ctx++;
+		counter++;
+		if (counter < DIRECTION - 1)
+			xDecodeBin(terminate_bit, m_cCUInterMHBSKIPSCModel.get(0, 0, act_ctx));
+	}
+
+	UInt temp;
+	if (!terminate_bit) {
+		xDecodeBin(temp, m_cCUInterMHBSKIPSCModel.get(0, 0, act_ctx));
+		act_sym += (!temp);
+	}
+
+	//se->value1 = act_sym;
+	if (act_sym == 0) {
+		pcCU->setInterSkipmodeSubParts(act_sym, uiAbsPartIdx, uiDepth);
+	}
+	else
+	{
+		pcCU->setInterSkipmodeSubParts(3 + act_sym, uiAbsPartIdx, uiDepth);
+	}
+
+	return;
+}
+#endif
 Void TDecSbac::parsePredMode( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth )
 {
   pcCU->setSizeSubParts( 1<<(g_uiLog2MaxCUSize - uiDepth), 1<<(g_uiLog2MaxCUSize - uiDepth), uiAbsPartIdx, uiDepth );
@@ -2270,7 +2338,7 @@ Void TDecSbac::parseDMHMode(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 	if (!pcCU->getPicture()->isInterF())
 	{
 		return;
-}
+  }
 #if FF_ENABLE
 	if (pcCU->getLog2CUSize(uiAbsPartIdx) == 3 && pcCU->getPartitionSize(uiAbsPartIdx) != 0
 		&& pcCU->getPicture()->isInterF())
@@ -2619,8 +2687,11 @@ Void TDecSbac::parseInterDirRD(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth
 		}
 
 
-
+#if	YQH_B_INTER
+		index = dir2offset[pDir0][pDir1];
+#else
 		index = dir2offset[pDir0 + 1][pDir1 + 1];
+#endif
 		//printf("index=%d  \n", index);
 	}
 	else if (pcCU->getPartitionSize(uiAbsPartIdx) >= SIZE_2NxN || pcCU->getPartitionSize(uiAbsPartIdx) <= SIZE_nRx2N)
@@ -2753,7 +2824,57 @@ Void TDecSbac::parseInterDirRD(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth
 	}
 
 	UInt uiPartOffset = (pcCU->getPic()->getNumPartInCU() >> (uiDepth << 1)) >> 2;
+#if	YQH_B_INTER
+	if ((pcCU->getPartitionSize(uiAbsPartIdx)) == SIZE_2Nx2N)
+	{
 
+		if (index == 4)
+			printf("error index \n");
+
+
+		if (index == 0)
+			index = 1;
+		else if (index == 1)
+			index = 2;
+		else if (index == 2)
+			index = 4;
+		else
+			index = index;
+
+
+
+	}
+	else
+	{
+		if (pdir0[index] == 4)
+			printf("error pdir0[index] \n");
+
+
+		if (pdir0[index] == 0)
+			pdir0[index] = 1;
+		else if (pdir0[index] == 1)
+			pdir0[index] = 2;
+		else if (pdir0[index] == 2)
+			pdir0[index] = 4;
+		else
+			pdir0[index] = pdir0[index];
+
+		if (pdir1[index] == 4)
+			printf("error pdir1[index] \n");
+
+		if (pdir1[index] == 0)
+			pdir1[index] = 1;
+		else if (pdir1[index] == 1)
+			pdir1[index] = 2;
+		else if (pdir1[index] == 2)
+			pdir1[index] = 4;
+		else
+			pdir1[index] = pdir1[index];
+
+	}
+
+	//	printf("pDir0=%d \n", index);
+#endif
 	switch (pcCU->getPartitionSize(uiAbsPartIdx))
 	{
 	case SIZE_2Nx2N:

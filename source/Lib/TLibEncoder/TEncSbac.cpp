@@ -90,6 +90,9 @@ TEncSbac::TEncSbac()
 #if F_MHPSKIP_SYC
 , m_cCUInterMHPSKIPSCModel    (1,              1,               NUM_INTER_MHPSKIP_CTX          )
 #endif
+#if B_MHBSKIP_SYC
+, m_cCUInterMHBSKIPSCModel    (1,              1,               NUM_INTER_MHPSKIP_CTX         )
+#endif
 #if YQH_INTRA
 , m_cCUIntraDirSCModel        ( 1,             1,               NUM_INTRA_DIR_CTX               )//yuquanhe@hisilicon.com
 #else
@@ -156,6 +159,9 @@ Void TEncSbac::resetEntropy           ()
 #endif
 #if F_MHPSKIP_SYC
 	m_cCUInterMHPSKIPSCModel.initBuffer();
+#endif
+#if B_MHBSKIP_SYC
+	m_cCUInterMHBSKIPSCModel.initBuffer();
 #endif
   m_cCUIntraDirSCModel.initBuffer        ();
 #if RPS
@@ -738,7 +744,12 @@ Void TEncSbac::codeIPicHeader( TComPicHeader* pcPicHeader )
   //decode_order_index还未加入计算过程，decode_order_index=coding_order % 256;
 #if RPS_BUG  //暂时写入POC的值 LDP RA不支持   
 #if BUG_816
+#if POC_256_BUG
+  xWriteCodeVlc(pcPicHeader->getPOC() % 256, 8);//8, "coding_order"
+#else
   xWriteCodeVlc(pcPicHeader->getPOC(), 10);//8, "coding_order"
+#endif
+ 
 #else
   xWriteCodeVlc((pcPicHeader->getPOC() % 256), 8);//8, "coding_order"
 #endif
@@ -2565,6 +2576,42 @@ Void TEncSbac::codeInterMHPSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx)
 	return;
 }
 #endif
+#if	B_MHBSKIP_SYC
+Void TEncSbac::codeInterMHBSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx)
+{
+
+	//BiContextTypePtr pCTX = (img->currentSlice)->syn_ctx->p_skip_mode_contexts;
+	UInt symbol = 0;
+	if (pcCU->getInterSkipmode(uiAbsPartIdx) == 0)
+	{
+		symbol = 0;
+	}
+	else
+	{
+		assert(pcCU->getInterSkipmode(uiAbsPartIdx) > 3);
+		symbol = pcCU->getInterSkipmode(uiAbsPartIdx) - 3;
+	}
+
+	UInt offset = 0;
+
+
+
+
+	for (offset = 0; offset < symbol; offset++) {
+		//biari_encode_symbol(eep_dp, 0, pCTX + offset);
+		xEncodeBin(0, m_cCUInterMHBSKIPSCModel.get(0, 0, offset));
+	}
+	if (symbol < DIRECTION) {
+		//biari_encode_symbol(eep_dp, 1, pCTX + offset);
+		xEncodeBin(1, m_cCUInterMHBSKIPSCModel.get(0, 0, offset));
+	}
+
+
+
+	return;
+}
+#endif
+
 
 #if WRITE_INTERDIR
 Void TEncSbac::codeInterDirRD(TComDataCU* pcCU, UInt uiAbsPartIdx)
@@ -2620,7 +2667,26 @@ Void TEncSbac::codeInterDirRD(TComDataCU* pcCU, UInt uiAbsPartIdx)
 	default:
 		break;
 	}
+#if YQH_B_INTER
+	if (pDir0 == 1)
+		pDir0 = 0;
+	else if (pDir0 == 2)
+		pDir0 = 1;
+	else if (pDir0 == 4)
+		pDir0 = 2;
+	else
+		pDir0 = pDir0;
 
+
+	if (pDir1 == 1)
+		pDir1 = 0;
+	else if (pDir1 == 2)
+		pDir1 = 1;
+	else if (pDir1 == 4)
+		pDir1 = 2;
+	else
+		pDir1 = pDir1;
+#endif
 	Int act_ctx = 0;
 	Int act_sym;
 	Int symbol;
@@ -2642,10 +2708,11 @@ Void TEncSbac::codeInterDirRD(TComDataCU* pcCU, UInt uiAbsPartIdx)
 	}
 	else if (pcCU->getPartitionSize(uiAbsPartIdx) >= SIZE_2NxN && pcCU->getPartitionSize(uiAbsPartIdx) <= SIZE_nRx2N && pcCU->getLog2CUSize(uiAbsPartIdx) == B8X8_IN_BIT)
 	{
-
+#if	YQH_B_INTER
+#else
 		pDir0 = pDir0 - 1;
 		pDir1 = pDir1 - 1;
-
+#endif
 		pDir0 = newPdir[pDir0];
 		pDir1 = newPdir[pDir1];
 
@@ -4499,6 +4566,9 @@ Void TEncSbac::xCopyFrom( TEncSbac* pSrc )
 #endif
 #if F_MHPSKIP_SYC
 	this->m_cCUInterMHPSKIPSCModel.copyFrom(&pSrc->m_cCUInterMHPSKIPSCModel);
+#endif
+#if B_MHBSKIP_SYC
+	this->m_cCUInterMHBSKIPSCModel.copyFrom(&pSrc->m_cCUInterMHBSKIPSCModel);
 #endif
   this->m_cCUIntraDirSCModel       .copyFrom( &pSrc->m_cCUIntraDirSCModel        );
 #if RPS

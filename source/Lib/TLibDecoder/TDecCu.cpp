@@ -409,6 +409,7 @@ Void TDecCu::xReconInterSkipDirect( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt ui
 	m_acYuvPred[1].clear(pcCU->getZorderIdxInCU(), uiSize);
 
 	// clear motion data
+
 #if RPS
 	TComMvField cMvFieldZero;
 	pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvFieldZero, pcCU->getPartitionSize(0), 0, 0, 0);
@@ -419,9 +420,156 @@ Void TDecCu::xReconInterSkipDirect( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt ui
 	pcCU->getCUMvField(REF_PIC_1)->setAllMvField(cMvZero, pcCU->getPartitionSize(0), 0, 0, 0);
 #endif
 
+
 	// set motion data
 	if (pcCU->getPicture()->isInterB())
 	{
+#if B_SKIP_ZP
+#if BSKIP
+		// Get_direct
+	{
+		Int offset;
+		Int TempRef;
+		TComMv TempMv;
+		Int   bw_ref, TRb, TRp, TRd, TRp1;
+		Int  FrameNoNextP, FrameNoB;
+
+		Int  DeltaP[MAX_NUM_REF_PICS];
+		Int numMBInblock = 1 << (pcCU->getPicture()->getSPS()->getLog2MaxCUSize() - pcCU->getDepth(0) - MIN_CU_SIZE_IN_BIT);   //qyu 0820 add 4:1 5:2 6:4
+		TComCUMvField* TComCUMvField = pcCU->getPicture()->getPicHeader()->getRefPic(REF_PIC_0, 0)
+			->getPicSym()->getDPBPerCtuData(pcCU->getAddr()).getCUMvField(REF_PIC_0); // fref[0]->refbuf,fref[0]->mvbuf;; 光删扫描存储方式
+		TComPic* TempPic = pcCU->getPicture()->getPicHeader()->getRefPic(REF_PIC_0, 0);
+		TComMv cMvPredL0;
+		TComMv cMvPredL1;
+		TComMvField cMvFieldPredL0;
+		TComMvField cMvFieldPredL1;
+		UInt  uiAbsPartIdxR = g_auiZscanToRaster[uiPartAddr];
+		Int iPartIdx = 0;
+		Int iRoiWidth, iRoiHeight;
+#if ZP_DEBUG_829 
+		UInt CurrPartNumQ = (pcCU->getPic()->getNumPartInCU() >> (pcCU->getDepth(0) << 1)) >> 2;
+#endif
+		for (Int block_y = 0; block_y < 2; block_y++)
+		{
+			for (Int block_x = 0; block_x < 2; block_x++)
+			{
+#if ZP_DEBUG_829 
+				uiPartAddr = CurrPartNumQ * iPartIdx;
+#else
+				pcCU->getPartIndexAndSize(iPartIdx, uiPartAddr, iRoiWidth, iRoiHeight);
+#endif 
+				//如何设置offset;
+				offset = numMBInblock * block_x + pcCU->getPic()->getNumPartInWidth() * numMBInblock * block_y;
+				TempRef = TComCUMvField->getRefIdx(uiAbsPartIdxR + offset);//应该可以用uiPartAddr代替
+				TempMv = TComCUMvField->getMv(uiAbsPartIdxR + offset);
+				if (TempRef = -1)
+				{
+					cMvPredL0 = pcCU->getMvFieldPred(0, REF_PIC_0, 0).getMv();
+					cMvPredL1 = pcCU->getMvFieldPred(0, REF_PIC_1, 0).getMv();
+					cMvFieldPredL0.setMvField(cMvPredL0, 0);
+					cMvFieldPredL1.setMvField(cMvPredL1, 0);
+					pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvFieldPredL0, SIZE_NxN, uiPartAddr, 0, 0);
+					pcCU->getCUMvField(REF_PIC_1)->setAllMvField(cMvFieldPredL1, SIZE_NxN, uiPartAddr, 0, 0);
+					// #if Mv_check_bug 
+				}
+				else
+				{
+					//需要定义下img->imgtr_next_P 、、hc->picture_distance  imgtr_fwRefDistance
+					FrameNoNextP = 2 * pcCU->getPicture()->getPicHeader()->getTemporalReferenceNextP();
+					FrameNoB = 2 * pcCU->getPicture()->getPicHeader()->getPictureDistance();
+
+					if (TempPic->getPicture()->getPictureType() == B_PICTURE)//假设RD下B帧只有2帧可以参考
+					{
+						DeltaP[0] = 2 * (pcCU->getPicture()->getPicHeader()->getTemporalReferenceNextP()
+							- TempPic->getPicSym()->getPicHeader()->getRefPOC(REF_PIC_0, 0));
+						DeltaP[1] = 2 * (pcCU->getPicture()->getPicHeader()->getTemporalReferenceNextP()
+							- TempPic->getPicSym()->getPicHeader()->getRefPOC(REF_PIC_1, 0));
+					}
+					else
+					{
+#if ZP_DEBUG_828
+						for (Int i = 0; i < TempPic->getPicHeader()->getNumRefIdx(REF_PIC_0); i++)
+#else
+						for (Int i = 0; i++; i < TempPic->getPicHeader()->getNumRefIdx(REF_PIC_0))
+#endif
+						{
+							DeltaP[i] = 2 * (pcCU->getPicture()->getPicHeader()->getTemporalReferenceNextP()
+								- TempPic->getPicSym()->getPicHeader()->getRefPOC(REF_PIC_0, i));
+						}
+					}
+					TRp = DeltaP[TempRef];
+					TRp1 = 2 * (pcCU->getPicture()->getPicHeader()->getTemporalReferenceNextP() -
+						TempPic->getPicSym()->getPicHeader()->getTemporalReferenceForwardDistance());
+					TRd = FrameNoNextP - FrameNoB;
+					TRb = TRp1 - TRd;
+					TRp = (TRp + 512) % 512;
+					TRp1 = (TRp1 + 512) % 512;
+					TRd = (TRd + 512) % 512;
+					TRb = (TRb + 512) % 512;
+					//scalingDirectMvHor(TempMv.getHor(), TRp, TRb, TRd, &cMvPredL0, &cMvPredL1);
+					if (TempMv.getHor() < 0) {
+						cMvPredL0.setHor(-((long long int)(MULTI / TRp) * (1 + (-TRb) * TempMv.getHor()) - 1) >> OFFSET);
+						cMvPredL1.setHor(((long long int)(MULTI / TRp) * (1 + (-TRd) * TempMv.getHor()) - 1) >> OFFSET);
+					}
+					else {
+						cMvPredL0.setHor(((long long int)(MULTI / TRp) * (1 + TRb * TempMv.getHor()) - 1) >> OFFSET);
+						cMvPredL1.setHor(-((long long int)(MULTI / TRp) * (1 + TRd * TempMv.getHor()) - 1) >> OFFSET);
+					}
+					//scalingDirectMvVer(TempMv.getVer(), FrameNoNextP, TRp, FrameNoB, TRb, TRd, &cMvPredL0, &cMvPredL1);
+					if (TempMv.getVer() < 0) {
+						cMvPredL0.setVer(-((long long int)(MULTI / TRp) * (1 + (-TRb) * TempMv.getVer()) - 1) >> OFFSET);
+						cMvPredL1.setVer(((long long int)(MULTI / TRp) * (1 + (-TRd) * TempMv.getVer()) - 1) >> OFFSET);
+					}
+					else {
+						cMvPredL0.setVer(((long long int)(MULTI / TRp) * (1 + TRb * TempMv.getVer()) - 1) >> OFFSET);
+						cMvPredL1.setVer(-((long long int)(MULTI / TRp) * (1 + TRd * TempMv.getVer()) - 1) >> OFFSET);
+					}
+					cMvFieldPredL0.setMvField(cMvPredL0, TempRef);
+					cMvFieldPredL1.setMvField(cMvPredL1, TempRef);
+					pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvFieldPredL0, SIZE_NxN, uiPartAddr, 0, 0);
+					pcCU->getCUMvField(REF_PIC_1)->setAllMvField(cMvFieldPredL1, SIZE_NxN, uiPartAddr, 0, 0);
+				}
+				iPartIdx++;
+				if (pcCU->getPicture()->getSPS()->getLog2MaxCUSize() - pcCU->getDepth(0) == MIN_CU_SIZE_IN_BIT)
+				{
+					break;
+				}
+			}
+			if (pcCU->getPicture()->getSPS()->getLog2MaxCUSize() - pcCU->getDepth(0) == MIN_CU_SIZE_IN_BIT)
+			{
+				break;
+			}
+		}
+		if (pcCU->getPicture()->getSPS()->getLog2MaxCUSize() - pcCU->getDepth(0) == MIN_CU_SIZE_IN_BIT)
+		{
+
+			//  pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvPredL0, pcCU->getPartitionSize(0), 0, 0, 0);
+			//  pcCU->getCUMvField(REF_PIC_1)->setAllMvField(cMvPredL1, pcCU->getPartitionSize(0), 0, 0, 0);
+			cMvFieldPredL0.setMvField(cMvPredL0, 0);
+			cMvFieldPredL1.setMvField(cMvPredL1, 0);
+			pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvFieldPredL0, pcCU->getPartitionSize(0), 0, 0, 0);
+			pcCU->getCUMvField(REF_PIC_1)->setAllMvField(cMvFieldPredL1, pcCU->getPartitionSize(0), 0, 0, 0);
+		}
+		//pcCU->setSkipMotionVectorPredictor(0);
+	}
+#else
+#if RPS
+		TComMvField cMvFieldPredL0 = pcCU->getMvFieldPred(0, REF_PIC_0, 0);
+		TComMvField cMvFieldPredL1 = pcCU->getMvFieldPred(0, REF_PIC_1, 0);
+
+		pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvFieldPredL0, pcCU->getPartitionSize(0), 0, 0, 0);
+		pcCU->getCUMvField(REF_PIC_1)->setAllMvField(cMvFieldPredL1, pcCU->getPartitionSize(0), 0, 0, 0);
+#else
+		TComMv cMvPredL0 = pcCU->getMvPred(0, REF_PIC_0);
+		TComMv cMvPredL1 = pcCU->getMvPred(0, REF_PIC_1);
+
+		pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvPredL0, pcCU->getPartitionSize(0), 0, 0, 0);
+		pcCU->getCUMvField(REF_PIC_1)->setAllMvField(cMvPredL1, pcCU->getPartitionSize(0), 0, 0, 0);
+#endif
+
+#endif
+		
+#else
 #if B_RPS_BUG_818
 		TComMvField cMvFieldPredL0;            //暂时B帧的skip模式还没有进来
 		TComMvField cMvFieldPredL1;
@@ -443,9 +591,18 @@ Void TDecCu::xReconInterSkipDirect( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt ui
 #else
 		pcCU->setInterDirSubParts(3, 0, pcCU->getDepth(0), 0);
 #endif
+
+
+#endif
+#if B_SKIP_ZP
+		uiPartAddr = pcCU->getZorderIdxInCU();
+		pcCU->setSkipMotionVectorPredictor(0);
+		pcCU->setInterDirSubParts(3, 0, pcCU->getDepth(0), 0);
+#endif
 	}
 	else
 	{
+
 #if PSKIP
 	{
 		TComMv cMvPredL0;
@@ -472,20 +629,27 @@ Void TDecCu::xReconInterSkipDirect( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt ui
 		//uiPartAddr
 		//uiBitSize = 
 		UInt blockshape_block_x, blockshape_block_y;
-		UInt  uiAbsPartIdx = g_auiZscanToRaster[uiPartAddr];
+		UInt  uiAbsPartIdxR = g_auiZscanToRaster[uiPartAddr];
 		blockshape_block_x = pcCU->getWidth(0) >> MIN_BLOCK_SIZE_IN_BIT;
 		blockshape_block_y = pcCU->getHeight(0) >> MIN_BLOCK_SIZE_IN_BIT;
 		Int iPartIdx = 0;
 		Int iRoiWidth, iRoiHeight;
+#if ZP_DEBUG_829 
+		UInt CurrPartNumQ = (pcCU->getPic()->getNumPartInCU() >> (pcCU->getDepth(0) << 1)) >> 2;
+#endif
 		for (Int i = 0; i < 2; i++)
 		{
 			for (Int j = 0; j < 2; j++)
 			{
+#if ZP_DEBUG_829 
+				uiPartAddr = CurrPartNumQ * iPartIdx;
+#else
 				pcCU->getPartIndexAndSize(iPartIdx, uiPartAddr, iRoiWidth, iRoiHeight);
+#endif 
 				//如何设置offset;
 				offset = blockshape_block_x / 2 * i + pcCU->getPic()->getNumPartInWidth() * blockshape_block_y / 2 * j;
-				ColRef = ColCUMvField->getRefIdx(uiAbsPartIdx + offset);
-				Colmv = ColCUMvField->getMv(uiAbsPartIdx + offset);
+				ColRef = ColCUMvField->getRefIdx(uiAbsPartIdxR + offset);
+				Colmv = ColCUMvField->getMv(uiAbsPartIdxR + offset);
 
 
 				if (ColRef >= 0)
@@ -521,6 +685,7 @@ Void TDecCu::xReconInterSkipDirect( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt ui
 	{
 		uiPartAddr = pcCU->getZorderIdxInCU();
 		pcCU->setPSkipMvField(0); // 2NX2N
+
 	}
 #endif
 #if rd_mvd
@@ -605,8 +770,13 @@ Void TDecCu::xReconInterSkipDirect( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt ui
 				tempMV[0] = pcCU->getTmpFirstMvPred(FW_P_FST).getMv();
 				break;
 			case FW_P_SND:
+#if F_DEBUG_828
+				refIdx[0] = pcCU->getTmpFirstMvPred(FW_P_SND).getRefIdx();
+				tempMV[0] = pcCU->getTmpFirstMvPred(FW_P_SND).getMv();
+#else
 				refIdx[0] = pcCU->getTmpFirstMvPred(FW_P_FST).getRefIdx();
 				tempMV[0] = pcCU->getTmpFirstMvPred(FW_P_FST).getMv();
+#endif
 				break;
 			default:
 				assert(0);
@@ -621,12 +791,17 @@ Void TDecCu::xReconInterSkipDirect( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt ui
 				pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(refIdx[0], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
 
 				m_pcPrediction->motionCompensation(pcCU, &m_acMHPSkipYuvPred[REF_PIC_0], REF_PIC_0, 0);
-
+#if F_L1_FOR_MHPSKIP_SYC
+				pcCU->setInterDirSubParts(INTER_BACKWARD, uiPartAddr, pcCU->getDepth(0), 0);
+				pcCU->getCUMvField(REF_PIC_1)->setAllMv(tempMV[1], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
+				pcCU->getCUMvField(REF_PIC_1)->setAllRefIdx(refIdx[1], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
+				m_pcPrediction->motionCompensation(pcCU, &m_acMHPSkipYuvPred[REF_PIC_1], REF_PIC_1, 0);
+#else
 				pcCU->setInterDirSubParts(INTER_FORWARD, uiPartAddr, pcCU->getDepth(0), 0);
 				pcCU->getCUMvField(REF_PIC_0)->setAllMv(tempMV[1], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
 				pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(refIdx[1], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
 				m_pcPrediction->motionCompensation(pcCU, &m_acMHPSkipYuvPred[REF_PIC_1], REF_PIC_0, 0);
-
+#endif
 				m_pcYuvReco->addAvg(&m_acMHPSkipYuvPred[0], &m_acMHPSkipYuvPred[1], uiPartAddr + pcCU->getZorderIdxInCU(), iRoiWidth, iRoiHeight, uiPartAddr + pcCU->getZorderIdxInCU());
 			}
 			else
@@ -677,7 +852,61 @@ Void TDecCu::xReconInterSkipDirect( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt ui
 		}
 #endif
 	}
-	else
+#if B_MHBSKIP_SYC
+		else if (pcCU->getInterSkipmode(uiPartAddr) > 3)//MHBSKIP
+		{
+
+			Int refIdx[2];
+			TComMv tempMV[2];
+
+			switch (pcCU->getInterSkipmode(uiPartAddr) - 3)
+			{
+			case  DS_BID:
+				refIdx[0] = 0;
+				tempMV[0] = pcCU->getTempForwardBSkipMvPred(DS_BID);
+				refIdx[1] = 0;
+				tempMV[1] = pcCU->getTempBackwardBSkipMvPred(DS_BID);
+				pcCU->setInterDirSubParts(INTER_BID, uiPartAddr, pcCU->getDepth(0), 0);
+				pcCU->getCUMvField(REF_PIC_0)->setAllMv(tempMV[0], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
+				pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(refIdx[0], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
+				pcCU->getCUMvField(REF_PIC_1)->setAllMv(tempMV[1], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
+				pcCU->getCUMvField(REF_PIC_1)->setAllRefIdx(refIdx[1], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
+				m_pcPrediction->motionCompensation(pcCU, m_pcYuvReco, REF_PIC_X, 0);
+				break;
+			case DS_BACKWARD:
+				refIdx[1] = 0;
+				tempMV[1] = pcCU->getTempBackwardBSkipMvPred(DS_BACKWARD);
+				pcCU->setInterDirSubParts(INTER_BACKWARD, uiPartAddr, pcCU->getDepth(0), 0);
+				pcCU->getCUMvField(REF_PIC_1)->setAllMv(tempMV[1], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
+				pcCU->getCUMvField(REF_PIC_1)->setAllRefIdx(refIdx[1], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
+				m_pcPrediction->motionCompensation(pcCU, m_pcYuvReco, REF_PIC_1, 0);
+				break;
+			case DS_SYM:
+				refIdx[0] = 0;
+				tempMV[0] = pcCU->getTempForwardBSkipMvPred(DS_SYM);
+				refIdx[1] = 0;
+				tempMV[1] = pcCU->getTempBackwardBSkipMvPred(DS_SYM);
+				pcCU->setInterDirSubParts(INTER_BID, uiPartAddr, pcCU->getDepth(0), 0);//DS_SYM
+				pcCU->getCUMvField(REF_PIC_0)->setAllMv(tempMV[0], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
+				pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(refIdx[0], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
+				pcCU->getCUMvField(REF_PIC_1)->setAllMv(tempMV[1], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
+				pcCU->getCUMvField(REF_PIC_1)->setAllRefIdx(refIdx[1], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
+				m_pcPrediction->motionCompensation(pcCU, m_pcYuvReco, REF_PIC_X, 0);
+				break;
+			case DS_FORWARD:
+				refIdx[0] = 0;
+				tempMV[0] = pcCU->getTempForwardBSkipMvPred(DS_FORWARD);
+				pcCU->setInterDirSubParts(INTER_FORWARD, uiPartAddr, pcCU->getDepth(0), 0);
+				pcCU->getCUMvField(REF_PIC_0)->setAllMv(tempMV[0], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
+				pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(refIdx[0], pcCU->getPartitionSize(0), uiPartAddr, 0, 0);
+				m_pcPrediction->motionCompensation(pcCU, m_pcYuvReco, REF_PIC_0, 0);
+				break;
+			default:
+				assert(0);
+			}
+		}
+#endif
+		else
 		m_pcPrediction->motionCompensation(pcCU, m_pcYuvReco);
 
 

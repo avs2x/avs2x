@@ -768,6 +768,16 @@ Void TComPicHeader::setRefPOCList()
         m_aiRefPOCList[iDir][iNumRefIdx] = m_apcRefPicList[iDir][iNumRefIdx]->getPOC();
     }
   }
+#if REFLISTBUG
+  if (this->getPictureType() == F_PICTURE)
+  {
+	  for (Int iNumRefIdx = 0; iNumRefIdx < m_iNumRefIdx[0]; iNumRefIdx++)  //F帧是不能有后向参考帧数的，用前向的来代替
+	  {
+		  if (m_apcRefPicList[1][iNumRefIdx] != NULL)
+			  m_aiRefPOCList[1][iNumRefIdx] = m_apcRefPicList[1][iNumRefIdx]->getPOC();
+	  }
+  }
+#endif
 }
 
 Void TComPicHeader::setRefPic(TComList<TComPic*>& rcListPic)
@@ -897,7 +907,19 @@ Void TComPicHeader::setRefPic(TComList<TComPic*>& rcListPic)
 	{
 		m_apcRefPicList[REF_PIC_1][rIdx] = rpsCurrList1[rIdx];
 	}
-
+#if REFLISTBUG
+	if (this->getPictureType() == F_PICTURE)
+	{
+		for (int reflist0Idx = 0; reflist0Idx < NumPicStCurr0; reflist0Idx++)
+		{
+			rpsCurrList1[reflist0Idx] = RefPicSetStCurr0[reflist0Idx];
+		}
+		for (Int rIdx = 0; rIdx < m_iNumRefIdx[REF_PIC_0]; rIdx++)  //F帧将前向的帧拷贝到后向去
+		{
+			m_apcRefPicList[REF_PIC_1][rIdx] = rpsCurrList1[rIdx];
+		}
+	}
+#endif
  
 }
 TComPic* TComPicHeader::xGetRefPicList(TComList<TComPic*>& rcListPic, Int poc)

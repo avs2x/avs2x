@@ -141,197 +141,227 @@ Void TDecEntropy::decodeIntraPuTypeIndex( TComDataCU* pcCU, UInt uiAbsPartIdx, U
 	{
 		return;
 	}
-	m_pcEntropyDecoderIf->parseIntraPuTypeIndex(pcCU, uiAbsPartIdx, uiDepth);
+  m_pcEntropyDecoderIf->parseIntraPuTypeIndex(pcCU, uiAbsPartIdx, uiDepth);
 }
 #endif
 
-Void TDecEntropy::decodePredInfo    ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth )
+Void TDecEntropy::decodePredInfo(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 {
-
-  if( pcCU->isSkip( uiAbsPartIdx ) )
+  if (pcCU->isSkip(uiAbsPartIdx) || pcCU->isDirect(uiAbsPartIdx))
   {
-    // clear motion data
-#if RPS
     TComMvField cMvFieldZero;
     pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvFieldZero, pcCU->getPartitionSize(uiAbsPartIdx), uiAbsPartIdx, 0, uiDepth);
     pcCU->getCUMvField(REF_PIC_1)->setAllMvField(cMvFieldZero, pcCU->getPartitionSize(uiAbsPartIdx), uiAbsPartIdx, 0, uiDepth);
-#else
-    TComMv cMvZero;
-
-    pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvZero, pcCU->getPartitionSize(uiAbsPartIdx), uiAbsPartIdx, 0, uiDepth);
-    pcCU->getCUMvField(REF_PIC_1)->setAllMvField(cMvZero, pcCU->getPartitionSize(uiAbsPartIdx), uiAbsPartIdx, 0, uiDepth);
-#endif
-
     // set inter direction
-    if ( pcCU->getPicture()->isInterB() )
+    if (pcCU->getPicture()->isInterB())
     {
-#if RPS
-#if 0//ZHANGYI_INTRA_SDIP
-		TComMv cMv0 = pcCU->getMvPredDec(uiAbsPartIdx, REF_PIC_0);
-		TComMv cMv1 = pcCU->getMvPredDec(uiAbsPartIdx, REF_PIC_1);
+      {      // Get_direct
+        Int offset;
+        Int TempRef;
+        TComMv TempMv;
+        Int   bw_ref, TRb, TRp, TRd, TRp1;
+        Int  FrameNoNextP, FrameNoB;
+        Int  DeltaP[MAX_NUM_REF_PICS];
+        Int numMBInblock = 1 << (pcCU->getPicture()->getSPS()->getLog2MaxCUSize() - uiDepth - MIN_CU_SIZE_IN_BIT);   //qyu 0820 add 4:1 5:2 6:4
+        TComCUMvField* TComCUMvField = pcCU->getPicture()->getPicHeader()->getRefPic(REF_PIC_0, 0)
+          ->getPicSym()->getDPBPerCtuData(pcCU->getAddr()).getCUMvField(REF_PIC_0); // fref[0]->refbuf,fref[0]->mvbuf;; 光删扫描存储方式
+        TComPic* TempPic = pcCU->getPicture()->getPicHeader()->getRefPic(REF_PIC_0, 0);
+        TComMv cMvPredL0;
+        TComMv cMvPredL1;
+        TComMvField cMvFieldPredL0;
+        TComMvField cMvFieldPredL1;
+        UInt  uiAbsPartIdxR = g_auiZscanToRaster[uiAbsPartIdx];
+        UInt uiPartAddr = 0;
+        Int iPartIdx = 0;
+        Int iRoiWidth, iRoiHeight;
+#if ZP_DEBUG_829 
+		UInt CurrPartNumQ = (pcCU->getPic()->getNumPartInCU() >> (uiDepth << 1)) >> 2;
 #endif
-#if B_RPS_BUG_819
-		TComMvField cMvField0;            //暂时B帧的skip模式还没有进来
-		TComMvField cMvField1;
-		cMvField0.setMvField(TComMv(), 0);
-		cMvField1.setMvField(TComMv(), 0);
+        for (Int block_y = 0; block_y < 2; block_y++)
+        {
+          for (Int block_x = 0; block_x < 2; block_x++)
+          {
+#if ZP_DEBUG_829 
+			  uiPartAddr = CurrPartNumQ * iPartIdx;
 #else
-      TComMvField cMvField0 = pcCU->getMvFieldPred(uiAbsPartIdx, REF_PIC_0, 0);
-      TComMvField cMvField1 = pcCU->getMvFieldPred(uiAbsPartIdx, REF_PIC_1, 0);
-#endif
-      pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvField0, pcCU->getPartitionSize(uiAbsPartIdx), uiAbsPartIdx, 0, uiDepth);
-      pcCU->getCUMvField(REF_PIC_1)->setAllMvField(cMvField1, pcCU->getPartitionSize(uiAbsPartIdx), uiAbsPartIdx, 0, uiDepth);
+			  pcCU->getPartIndexAndSize(iPartIdx, uiPartAddr, iRoiWidth, iRoiHeight);
+#endif 
+            //如何设置offset;
+            offset = numMBInblock * block_x + pcCU->getPic()->getNumPartInWidth() * numMBInblock * block_y;
+            TempRef = TComCUMvField->getRefIdx(uiAbsPartIdxR + offset);//应该可以用uiPartAddr代替
+            TempMv = TComCUMvField->getMv(uiAbsPartIdxR + offset);
+            if (TempRef = -1)
+            {
+              cMvPredL0 = pcCU->getMvFieldPred(uiAbsPartIdx, REF_PIC_0, 0).getMv();
+              cMvPredL1 = pcCU->getMvFieldPred(uiAbsPartIdx, REF_PIC_1, 0).getMv();
+              cMvFieldPredL0.setMvField(cMvPredL0, 0);
+              cMvFieldPredL1.setMvField(cMvPredL1, 0);
+              pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvFieldPredL0, SIZE_NxN, uiAbsPartIdx + uiPartAddr, 0, uiDepth);
+              pcCU->getCUMvField(REF_PIC_1)->setAllMvField(cMvFieldPredL1, SIZE_NxN, uiAbsPartIdx + uiPartAddr, 0, uiDepth);
+              // #if Mv_check_bug 
+            }
+            else
+            {
+              //需要定义下img->imgtr_next_P 、、hc->picture_distance  imgtr_fwRefDistance
+              FrameNoNextP = 2 * pcCU->getPicture()->getPicHeader()->getTemporalReferenceNextP();
+              FrameNoB = 2 * pcCU->getPicture()->getPicHeader()->getPictureDistance();
+
+              if (TempPic->getPicture()->getPictureType() == B_PICTURE)//假设RD下B帧只有2帧可以参考
+              {
+                DeltaP[0] = 2 * (pcCU->getPicture()->getPicHeader()->getTemporalReferenceNextP()
+                  - TempPic->getPicSym()->getPicHeader()->getRefPOC(REF_PIC_0, 0));
+                DeltaP[1] = 2 * (pcCU->getPicture()->getPicHeader()->getTemporalReferenceNextP()
+                  - TempPic->getPicSym()->getPicHeader()->getRefPOC(REF_PIC_1, 0));
+              }
+              else
+              {
+#if ZP_DEBUG_828
+				  for (Int i = 0; i < TempPic->getPicHeader()->getNumRefIdx(REF_PIC_0); i++)
 #else
-#if ZHANGYI_INTRA_SDIP
-		TComMv cMv0 = pcCU->getMvPredDec( uiAbsPartIdx, REF_PIC_0 );
-		TComMv cMv1 = pcCU->getMvPredDec( uiAbsPartIdx, REF_PIC_1 );
-#else
-		TComMv cMv0 = pcCU->getMvPred(uiAbsPartIdx, REF_PIC_0);
-		TComMv cMv1 = pcCU->getMvPred(uiAbsPartIdx, REF_PIC_1);
+				  for (Int i = 0; i++; i < TempPic->getPicHeader()->getNumRefIdx(REF_PIC_0))
 #endif
-      pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMv0, pcCU->getPartitionSize(uiAbsPartIdx), uiAbsPartIdx, 0, uiDepth);
-      pcCU->getCUMvField(REF_PIC_1)->setAllMvField(cMv1, pcCU->getPartitionSize(uiAbsPartIdx), uiAbsPartIdx, 0, uiDepth);
-#endif
-#if rd_mvd
-#if  B_RPS_BUG_820
-	  pcCU->setInterDirSubParts(1, uiAbsPartIdx, uiDepth, 0);
-#else
-	  pcCU->setInterDirSubParts(INTER_BID, uiAbsPartIdx, uiDepth, 0);
-#endif
-#else
-	  pcCU->setInterDirSubParts(3, uiAbsPartIdx, uiDepth, 0);
-#endif
+                {
+                  DeltaP[i] = 2 * (pcCU->getPicture()->getPicHeader()->getTemporalReferenceNextP()
+                    - TempPic->getPicSym()->getPicHeader()->getRefPOC(REF_PIC_0, i));
+                }
+              }
+              TRp = DeltaP[TempRef];
+              TRp1 = 2 * (pcCU->getPicture()->getPicHeader()->getTemporalReferenceNextP() -
+                TempPic->getPicSym()->getPicHeader()->getTemporalReferenceForwardDistance());
+              TRd = FrameNoNextP - FrameNoB;
+              TRb = TRp1 - TRd;
+              TRp = (TRp + 512) % 512;
+              TRp1 = (TRp1 + 512) % 512;
+              TRd = (TRd + 512) % 512;
+              TRb = (TRb + 512) % 512;
+              //scalingDirectMvHor(TempMv.getHor(), TRp, TRb, TRd, &cMvPredL0, &cMvPredL1);
+              if (TempMv.getHor() < 0) {
+                cMvPredL0.setHor(-((long long int)(MULTI / TRp) * (1 + (-TRb) * TempMv.getHor()) - 1) >> OFFSET);
+                cMvPredL1.setHor(((long long int)(MULTI / TRp) * (1 + (-TRd) * TempMv.getHor()) - 1) >> OFFSET);
+              }
+              else {
+                cMvPredL0.setHor(((long long int)(MULTI / TRp) * (1 + TRb * TempMv.getHor()) - 1) >> OFFSET);
+                cMvPredL1.setHor(-((long long int)(MULTI / TRp) * (1 + TRd * TempMv.getHor()) - 1) >> OFFSET);
+              }
+              //scalingDirectMvVer(TempMv.getVer(), FrameNoNextP, TRp, FrameNoB, TRb, TRd, &cMvPredL0, &cMvPredL1);
+              if (TempMv.getVer() < 0) {
+                cMvPredL0.setVer(-((long long int)(MULTI / TRp) * (1 + (-TRb) * TempMv.getVer()) - 1) >> OFFSET);
+                cMvPredL1.setVer(((long long int)(MULTI / TRp) * (1 + (-TRd) * TempMv.getVer()) - 1) >> OFFSET);
+              }
+              else {
+                cMvPredL0.setVer(((long long int)(MULTI / TRp) * (1 + TRb * TempMv.getVer()) - 1) >> OFFSET);
+                cMvPredL1.setVer(-((long long int)(MULTI / TRp) * (1 + TRd * TempMv.getVer()) - 1) >> OFFSET);
+              }
+              cMvFieldPredL0.setMvField(cMvPredL0, TempRef);
+              cMvFieldPredL1.setMvField(cMvPredL1, TempRef);
+              pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvFieldPredL0, SIZE_NxN, uiAbsPartIdx + uiPartAddr, 0, uiDepth);
+              pcCU->getCUMvField(REF_PIC_1)->setAllMvField(cMvFieldPredL1, SIZE_NxN, uiAbsPartIdx + uiPartAddr, 0, uiDepth);
+            }
+            iPartIdx++;
+            if (pcCU->getPicture()->getSPS()->getLog2MaxCUSize() - uiDepth == MIN_CU_SIZE_IN_BIT)
+            {
+              break;
+            }
+          }
+          if (pcCU->getPicture()->getSPS()->getLog2MaxCUSize() - uiDepth == MIN_CU_SIZE_IN_BIT)
+          {
+            break;
+          }
+        }
+        if (pcCU->getPicture()->getSPS()->getLog2MaxCUSize() - uiDepth == MIN_CU_SIZE_IN_BIT)
+        {
+
+          //  pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvPredL0, pcCU->getPartitionSize(0), 0, 0, 0);
+          //  pcCU->getCUMvField(REF_PIC_1)->setAllMvField(cMvPredL1, pcCU->getPartitionSize(0), 0, 0, 0);
+          cMvFieldPredL0.setMvField(cMvPredL0, 0);
+          cMvFieldPredL1.setMvField(cMvPredL1, 0);
+          pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvFieldPredL0, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
+          pcCU->getCUMvField(REF_PIC_1)->setAllMvField(cMvFieldPredL1, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
+        }
+      }
+      pcCU->setInterDirSubParts(3, uiAbsPartIdx, uiDepth, 0);
     }
     else
     {
-#if 0//ZHANGYI_INTRA_SDIP
-		TComMv cMv0 = pcCU->getMvPredDec(uiAbsPartIdx, REF_PIC_0);
+      TComMvField cMvField0;
 
-#endif
+	  cMvField0.setMvField(TComMv(), 0);
+	  pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvField0, pcCU->getPartitionSize(uiAbsPartIdx), uiAbsPartIdx, 0, uiDepth);
 
-#if RPS
-#if B_RPS_BUG_819
-		TComMvField cMvField0;
-		cMvField0.setMvField(TComMv(), 0);
-		pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvField0, pcCU->getPartitionSize(uiAbsPartIdx), uiAbsPartIdx, 0, uiDepth);
+
+      if (pcCU->getPicture()->getPictureType() == F_PICTURE)
+      {
+        decodeInterWSM(pcCU, uiAbsPartIdx, uiDepth);
+      }
+      if (pcCU->getPicture()->getPictureType() == F_PICTURE && pcCU->getInterSkipmode(uiAbsPartIdx) == 0)
+      {
+        decodeInterMHPSKIP(pcCU, uiAbsPartIdx, uiDepth);
+      }
+      if (pcCU->getInterSkipmode(uiAbsPartIdx) > 3)//MHPSKIP
+      {
+        pcCU->setPSkipMvField(uiAbsPartIdx); // 2NX2N
+        Int refIdx[2];
+        TComMv tempMV[2];
+        switch (pcCU->getInterSkipmode(uiAbsPartIdx) - 3)
+        {
+        case  BID_P_FST:
+          refIdx[0] = pcCU->getTmpFirstMvPred(BID_P_FST).getRefIdx();
+          tempMV[0] = pcCU->getTmpFirstMvPred(BID_P_FST).getMv();
+          refIdx[1] = pcCU->getTmpSecondMvPred(BID_P_FST).getRefIdx();
+          tempMV[1] = pcCU->getTmpSecondMvPred(BID_P_FST).getMv();
+          break;
+        case BID_P_SND:
+          refIdx[0] = pcCU->getTmpFirstMvPred(BID_P_SND).getRefIdx();
+          tempMV[0] = pcCU->getTmpFirstMvPred(BID_P_SND).getMv();
+          refIdx[1] = pcCU->getTmpSecondMvPred(BID_P_SND).getRefIdx();
+          tempMV[1] = pcCU->getTmpSecondMvPred(BID_P_SND).getMv();
+          break;
+        case FW_P_FST:
+          refIdx[0] = pcCU->getTmpFirstMvPred(FW_P_FST).getRefIdx();
+          tempMV[0] = pcCU->getTmpFirstMvPred(FW_P_FST).getMv();
+          break;
+        case FW_P_SND:
+#if F_DEBUG_828
+		  refIdx[0] = pcCU->getTmpFirstMvPred(FW_P_SND).getRefIdx();
+		  tempMV[0] = pcCU->getTmpFirstMvPred(FW_P_SND).getMv();
 #else
-      TComMvField cMv0 = pcCU->getMvFieldPred(uiAbsPartIdx, REF_PIC_0, 0);
+          refIdx[0] = pcCU->getTmpFirstMvPred(FW_P_FST).getRefIdx();
+          tempMV[0] = pcCU->getTmpFirstMvPred(FW_P_FST).getMv();
 #endif
+          break;
+        default:
+          assert(0);
+        }
+        if (pcCU->getInterSkipmode(uiAbsPartIdx) - 3 < FW_P_FST)
+        {
+
+          pcCU->setInterDirSubParts(INTER_FORWARD, uiAbsPartIdx, uiDepth, 0);
+          pcCU->getCUMvField(REF_PIC_0)->setAllMv(tempMV[0], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
+          pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(refIdx[0], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
+
+#if F_L1_FOR_MHPSKIP_SYC
+		  pcCU->setInterDirSubParts(INTER_BACKWARD, uiAbsPartIdx, uiDepth, 0);
+		  pcCU->getCUMvField(REF_PIC_1)->setAllMv(tempMV[1], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
+		  pcCU->getCUMvField(REF_PIC_1)->setAllRefIdx(refIdx[1], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
 #else
-      TComMv cMv0 = pcCU->getMvPred(uiAbsPartIdx, REF_PIC_0);
+          // m_pcPrediction->motionCompensation(pcCU, &m_acMHPSkipYuvPred[REF_PIC_0], REF_PIC_0, 0);
+          pcCU->setInterDirSubParts(INTER_FORWARD, uiAbsPartIdx, uiDepth, 0);
+          pcCU->getCUMvField(REF_PIC_0)->setAllMv(tempMV[1], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
+          pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(refIdx[1], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
+          //m_pcPrediction->motionCompensation(pcCU, &m_acMHPSkipYuvPred[REF_PIC_1], REF_PIC_0, 0);
+
+          //m_pcYuvReco->addAvg(&m_acMHPSkipYuvPred[0], &m_acMHPSkipYuvPred[1], uiPartAddr + pcCU->getZorderIdxInCU(), iRoiWidth, iRoiHeight, uiPartAddr + pcCU->getZorderIdxInCU());
 #endif
-
-#if RPS
-
-#if	inter_direct_skip_bug2
-
-	  #if  inter_direct_skip_bug3
-	  if(pcCU->getPicture()->getPictureType()==F_PICTURE)
-		  decodeInterWSM(pcCU, uiAbsPartIdx, uiDepth);
-#else
-	  decodeInterWSM(pcCU, uiAbsPartIdx, uiDepth);
-#endif
-
-#endif
-#if F_MHPSKIP_SYC
-	  if (pcCU->getPicture()->getPictureType() == F_PICTURE && pcCU->getInterSkipmode(uiAbsPartIdx) == 0)
-		  decodeInterMHPSKIP(pcCU, uiAbsPartIdx, uiDepth);
-#endif
-
-#if F_MHPSKIP_SYC_DEBUG
-	  {
-		  //UInt uiPartAddr = pcCU->getZorderIdxInCU();
-
-		  if (pcCU->getInterSkipmode(uiAbsPartIdx) > 3)//MHPSKIP
-		  {
-			  pcCU->setPSkipMvField(uiAbsPartIdx); // 2NX2N
-			  Int refIdx[2];
-			  TComMv tempMV[2];
-#if F_MHPSKIP_SYC_FIXED_MV
-			  switch (pcCU->getInterSkipmode(uiAbsPartIdx) - 3)
-			  {
-			  case  BID_P_FST:
-				  refIdx[0] = 0;//pcCU->getTmpFirstMvPred(BID_P_FST).getRefIdx();
-				  tempMV[0] = TComMv(0, 0);// pcCU->getTmpFirstMvPred(BID_P_FST).getMv();
-				  refIdx[1] = 0;//pcCU->getTmpSecondMvPred(BID_P_FST).getRefIdx();
-				  tempMV[1] = TComMv(0, 0);//pcCU->getTmpSecondMvPred(BID_P_FST).getMv();
-				  break;
-			  case BID_P_SND:
-				  refIdx[0] = 0;//pcCU->getTmpFirstMvPred(BID_P_SND).getRefIdx();
-				  tempMV[0] = TComMv(0, 0);//pcCU->getTmpFirstMvPred(BID_P_SND).getMv();
-				  refIdx[1] = 0;//pcCU->getTmpSecondMvPred(BID_P_SND).getRefIdx();
-				  tempMV[1] = TComMv(0, 0);//pcCU->getTmpSecondMvPred(BID_P_SND).getMv();
-				  break;
-			  case FW_P_FST:
-				  refIdx[0] = 0;//pcCU->getTmpFirstMvPred(FW_P_FST).getRefIdx();
-				  tempMV[0] = TComMv(0, 0);//pcCU->getTmpFirstMvPred(FW_P_FST).getMv();
-				  break;
-			  case FW_P_SND:
-				  refIdx[0] = 0;//pcCU->getTmpFirstMvPred(FW_P_FST).getRefIdx();
-				  tempMV[0] = TComMv(0, 0);//pcCU->getTmpFirstMvPred(FW_P_FST).getMv();
-				  break;
-			  default:
-				  assert(0);
-			  }
-#else
-			  switch (pcCU->getInterSkipmode(uiAbsPartIdx) - 3)
-			  {
-			  case  BID_P_FST:
-				  refIdx[0] = pcCU->getTmpFirstMvPred(BID_P_FST).getRefIdx();
-				  tempMV[0] = pcCU->getTmpFirstMvPred(BID_P_FST).getMv();
-				  refIdx[1] = pcCU->getTmpSecondMvPred(BID_P_FST).getRefIdx();
-				  tempMV[1] = pcCU->getTmpSecondMvPred(BID_P_FST).getMv();
-				  break;
-			  case BID_P_SND:
-				  refIdx[0] = pcCU->getTmpFirstMvPred(BID_P_SND).getRefIdx();
-				  tempMV[0] = pcCU->getTmpFirstMvPred(BID_P_SND).getMv();
-				  refIdx[1] = pcCU->getTmpSecondMvPred(BID_P_SND).getRefIdx();
-				  tempMV[1] = pcCU->getTmpSecondMvPred(BID_P_SND).getMv();
-				  break;
-			  case FW_P_FST:
-				  refIdx[0] = pcCU->getTmpFirstMvPred(FW_P_FST).getRefIdx();
-				  tempMV[0] = pcCU->getTmpFirstMvPred(FW_P_FST).getMv();
-				  break;
-			  case FW_P_SND:
-				  refIdx[0] = pcCU->getTmpFirstMvPred(FW_P_FST).getRefIdx();
-				  tempMV[0] = pcCU->getTmpFirstMvPred(FW_P_FST).getMv();
-				  break;
-			  default:
-				  assert(0);
-			  }
-#endif
-
-
-			  if (pcCU->getInterSkipmode(uiAbsPartIdx) - 3 < FW_P_FST)
-			  {
-				  pcCU->setInterDirSubParts(INTER_FORWARD, uiAbsPartIdx, uiDepth, 0);
-				  pcCU->getCUMvField(REF_PIC_0)->setAllMv(tempMV[0], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-				  pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(refIdx[0], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-
-				  // m_pcPrediction->motionCompensation(pcCU, &m_acMHPSkipYuvPred[REF_PIC_0], REF_PIC_0, 0);
-
-				  pcCU->setInterDirSubParts(INTER_FORWARD, uiAbsPartIdx, uiDepth, 0);
-				  pcCU->getCUMvField(REF_PIC_0)->setAllMv(tempMV[1], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-				  pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(refIdx[1], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-				  //m_pcPrediction->motionCompensation(pcCU, &m_acMHPSkipYuvPred[REF_PIC_1], REF_PIC_0, 0);
-
-				  //m_pcYuvReco->addAvg(&m_acMHPSkipYuvPred[0], &m_acMHPSkipYuvPred[1], uiPartAddr + pcCU->getZorderIdxInCU(), iRoiWidth, iRoiHeight, uiPartAddr + pcCU->getZorderIdxInCU());
-			  }
-			  else
-			  {
-				  pcCU->setInterDirSubParts(INTER_FORWARD, uiAbsPartIdx, uiDepth, 0);
-				  pcCU->getCUMvField(REF_PIC_0)->setAllMv(tempMV[0], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-				  pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(refIdx[0], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-
-				  //m_pcPrediction->motionCompensation(pcCU, &m_acMHPSkipYuvPred[REF_PIC_0], REF_PIC_0, 0);
-
-				  //m_acMHPSkipYuvPred[REF_PIC_0].copyPartToPartYuv(m_pcYuvReco, uiPartAddr + pcCU->getZorderIdxInCU(), uiPartAddr + pcCU->getZorderIdxInCU(), iRoiWidth, iRoiHeight);
-			  }
-
-		  }
-#if F_MHPSKIP_SYC_DEBUG_2
-		  else
-		  {
+        }
+        else
+        {
+          pcCU->setInterDirSubParts(INTER_FORWARD, uiAbsPartIdx, uiDepth, 0);
+          pcCU->getCUMvField(REF_PIC_0)->setAllMv(tempMV[0], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
+          pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(refIdx[0], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
+        }
+      }
+      else
+      {
         {
           TComMv cMvPredL0;
           TComMvField cMvFieldPredL0;// = pcCU->getMvFieldPred(0, REF_PIC_0, 0);
@@ -339,15 +369,6 @@ Void TDecEntropy::decodePredInfo    ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt 
 
           TComCUMvField* ColCUMvField = pcCU->getPicture()->getPicHeader()->getRefPic(REF_PIC_0, 0)
             ->getPicSym()->getDPBPerCtuData(pcCU->getAddr()).getCUMvField(REF_PIC_0); //col_ref col_mv 光删扫描存储方式
-
-
-          //TComMvField testpred;
-          //testpred = pcCU->getMvFieldPred(uiAbsPartIdx, eRefPic, iRefIdx);
-          //pAboveCU->getCUMvField(eRefPic)->getMv(uiAboveIdx)
-
-          //	TComCUMvField* ColCUMvField = pcCU->getCUMvField(REF_PIC_0);
-
-
           Int ColRef = 0;
           TComMv Colmv;
           Int offset = 0;
@@ -362,11 +383,18 @@ Void TDecEntropy::decodePredInfo    ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt 
           blockshape_block_y = pcCU->getHeight(uiAbsPartIdx) >> MIN_BLOCK_SIZE_IN_BIT;
           Int iPartIdx = 0;
           Int iRoiWidth, iRoiHeight;
+#if ZP_DEBUG_829 
+		  UInt CurrPartNumQ = (pcCU->getPic()->getNumPartInCU() >> (uiDepth << 1)) >> 2;
+#endif
           for (Int i = 0; i < 2; i++)
           {
             for (Int j = 0; j < 2; j++)
             {
-              pcCU->getPartIndexAndSize(iPartIdx, uiPartAddr, iRoiWidth, iRoiHeight);
+#if ZP_DEBUG_829 
+				uiPartAddr = CurrPartNumQ * iPartIdx;
+#else
+				pcCU->getPartIndexAndSize(iPartIdx, uiPartAddr, iRoiWidth, iRoiHeight);
+#endif       
               //如何设置offset;
               offset = blockshape_block_x / 2 * i + pcCU->getPic()->getNumPartInWidth() * blockshape_block_y / 2 * j;
               ColRef = ColCUMvField->getRefIdx(uiAbsPartIdxR + offset);
@@ -403,425 +431,76 @@ Void TDecEntropy::decodePredInfo    ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt 
             }
           }
         }
-#if	inter_direct_skip_bug3
-			  Int           iNumPredDir = pcCU->getPicture()->isInterB() ? 2 : 1;
-#else
-			  Int           iNumPredDir = pcCU->getPicture()->isInterP() ? 1 : 2;
-#endif
-
-			  for (Int iRefPic = 0; iRefPic < iNumPredDir; iRefPic++)
-			  {
-				  RefPic eRefPic = (iRefPic ? REF_PIC_1 : REF_PIC_0); // llt
-				  Int w = pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic);
-				  // pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic)
-				  for (Int iRefIdxTemp = 0; iRefIdxTemp < 2; iRefIdxTemp++)
-				  {
-					  pcCU->setInterDirSubParts(iRefPic + 1, uiAbsPartIdx, uiDepth, 0);
-					  Int refIdx = (iRefIdxTemp == 0 ? 0 : pcCU->getInterSkipmode(uiAbsPartIdx));
-					  pcCU->getCUMvField(eRefPic)->setAllRefIdx(refIdx, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-				  }//end of refIdxnum
-				  Int refIdx = 0;
-				  pcCU->getCUMvField(eRefPic)->setAllRefIdx(refIdx, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-			  }
-		  }
-#endif
-	}
-#endif
-
-#if WRITE_INTERDIR
-	  decodeInterDirRD(pcCU, uiAbsPartIdx, uiDepth);
-#else
-      decodeInterDir(pcCU, uiAbsPartIdx, uiDepth);
-#endif
-#if DIRECTSKIP_BUG_YQH
-	  if (pcCU->isSkip(uiAbsPartIdx)|| pcCU->isDirect(uiAbsPartIdx))
-	  {
-
-#if F_MHPSKIP_SYC_DEBUG
-		  if (pcCU->getInterSkipmode(uiAbsPartIdx) <= 3)//not MHPSKIP
-		  {
-#endif
-
-			  Int	iRefIdx = 0;
-			  pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(iRefIdx, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-#if  inter_intra_3
-
-#if F_MHPSKIP_SYC_DEBUG
-
-#if !F_MHPSKIP_SYC_DEBUG_2
-        if (pcCU->getInterSkipmode(uiAbsPartIdx) != 0)
+        Int  iNumPredDir = 1;
+        for (Int iRefPic = 0; iRefPic < iNumPredDir; iRefPic++)
         {
-          pcCU->getCUMvField(REF_PIC_1)->setAllRefIdx(iRefIdx, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
+          RefPic eRefPic = (iRefPic ? REF_PIC_1 : REF_PIC_0); // llt
+          Int w = pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic);
+          // pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic)
+          for (Int iRefIdxTemp = 0; iRefIdxTemp < 2; iRefIdxTemp++)
+          {
+            pcCU->setInterDirSubParts(iRefPic + 1, uiAbsPartIdx, uiDepth, 0);
+            Int refIdx = (iRefIdxTemp == 0 ? 0 : pcCU->getInterSkipmode(uiAbsPartIdx));
+            pcCU->getCUMvField(eRefPic)->setAllRefIdx(refIdx, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
+          }//end of refIdxnum
+          Int refIdx = 0;
+          pcCU->getCUMvField(eRefPic)->setAllRefIdx(refIdx, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
         }
-#endif		 
-#else
-			  pcCU->getCUMvField(REF_PIC_1)->setAllRefIdx(iRefIdx, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-#endif
-#endif
-#if F_MHPSKIP_SYC_DEBUG
-		  }
-#endif
-	}
-	  else
-	  {
-		  decodeRef(pcCU, uiAbsPartIdx, uiDepth, REF_PIC_0);
-	  }
-#else
-      decodeRef(pcCU, uiAbsPartIdx, uiDepth, REF_PIC_0);
-#endif
-#else
-      pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMv0, pcCU->getPartitionSize(uiAbsPartIdx), uiAbsPartIdx, 0, uiDepth);
-#endif
-#if rd_mvd
-	  pcCU->setInterDirSubParts(INTER_FORWARD, uiAbsPartIdx, uiDepth, 0);
-#else
-	  pcCU->setInterDirSubParts(1, uiAbsPartIdx, uiDepth, 0);
-#endif
-    
-
-	}
-
+      }
+      pcCU->setInterDirSubParts(1, uiAbsPartIdx, uiDepth, 0);
+      if (pcCU->getInterSkipmode(uiAbsPartIdx) <= 3)//not MHPSKIP
+      {
+        Int	iRefIdx = 0;
+        pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(iRefIdx, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
+      }
+      pcCU->setInterDirSubParts(1, uiAbsPartIdx, uiDepth, 0);
+    }
     return;
   }
-
-  PartSize eMode = pcCU->getPartitionSize( uiAbsPartIdx );
-
-  if( !pcCU->isIntra( uiAbsPartIdx ) )                                 // If it is Intra mode, encode intra prediction mode.
+  PartSize eMode = pcCU->getPartitionSize(uiAbsPartIdx);
+  if (!pcCU->isIntra(uiAbsPartIdx))
   {
-#if	inter_direct_skip_bug2
-#if  inter_direct_skip_bug3
-	  if (pcCU->getPicture()->getPictureType() == F_PICTURE)
-	  decodeInterWSM(pcCU, uiAbsPartIdx, uiDepth);
-#else
-	  decodeInterWSM(pcCU, uiAbsPartIdx, uiDepth);
-#endif
-#endif
-#if F_MHPSKIP_SYC
-	  if (pcCU->getPicture()->getPictureType() == F_PICTURE && pcCU->getInterSkipmode(uiAbsPartIdx) == 0)
-		  decodeInterMHPSKIP(pcCU, uiAbsPartIdx, uiDepth);
-#endif
-
-
-#if F_MHPSKIP_SYC_DEBUG
-	  {
-		  //UInt uiPartAddr = pcCU->getZorderIdxInCU();
-
-		  if (pcCU->getInterSkipmode(uiAbsPartIdx) > 3)//MHPSKIP
-		  {
-			  pcCU->setPSkipMvField(uiAbsPartIdx); // 2NX2N
-			  Int refIdx[2];
-			  TComMv tempMV[2];
-#if F_MHPSKIP_SYC_FIXED_MV
-			  switch (pcCU->getInterSkipmode(uiAbsPartIdx) - 3)
-			  {
-			  case  BID_P_FST:
-				  refIdx[0] = 0;//pcCU->getTmpFirstMvPred(BID_P_FST).getRefIdx();
-				  tempMV[0] = TComMv(0, 0);// pcCU->getTmpFirstMvPred(BID_P_FST).getMv();
-				  refIdx[1] = 0;//pcCU->getTmpSecondMvPred(BID_P_FST).getRefIdx();
-				  tempMV[1] = TComMv(0, 0);//pcCU->getTmpSecondMvPred(BID_P_FST).getMv();
-				  break;
-			  case BID_P_SND:
-				  refIdx[0] = 0;//pcCU->getTmpFirstMvPred(BID_P_SND).getRefIdx();
-				  tempMV[0] = TComMv(0, 0);//pcCU->getTmpFirstMvPred(BID_P_SND).getMv();
-				  refIdx[1] = 0;//pcCU->getTmpSecondMvPred(BID_P_SND).getRefIdx();
-				  tempMV[1] = TComMv(0, 0);//pcCU->getTmpSecondMvPred(BID_P_SND).getMv();
-				  break;
-			  case FW_P_FST:
-				  refIdx[0] = 0;//pcCU->getTmpFirstMvPred(FW_P_FST).getRefIdx();
-				  tempMV[0] = TComMv(0, 0);//pcCU->getTmpFirstMvPred(FW_P_FST).getMv();
-				  break;
-			  case FW_P_SND:
-				  refIdx[0] = 0;//pcCU->getTmpFirstMvPred(FW_P_FST).getRefIdx();
-				  tempMV[0] = TComMv(0, 0);//pcCU->getTmpFirstMvPred(FW_P_FST).getMv();
-				  break;
-			  default:
-				  assert(0);
-			  }
-#else
-			  switch (pcCU->getInterSkipmode(uiAbsPartIdx) - 3)
-			  {
-			  case  BID_P_FST:
-				  refIdx[0] = pcCU->getTmpFirstMvPred(BID_P_FST).getRefIdx();
-				  tempMV[0] = pcCU->getTmpFirstMvPred(BID_P_FST).getMv();
-				  refIdx[1] = pcCU->getTmpSecondMvPred(BID_P_FST).getRefIdx();
-				  tempMV[1] = pcCU->getTmpSecondMvPred(BID_P_FST).getMv();
-				  break;
-			  case BID_P_SND:
-				  refIdx[0] = pcCU->getTmpFirstMvPred(BID_P_SND).getRefIdx();
-				  tempMV[0] = pcCU->getTmpFirstMvPred(BID_P_SND).getMv();
-				  refIdx[1] = pcCU->getTmpSecondMvPred(BID_P_SND).getRefIdx();
-				  tempMV[1] = pcCU->getTmpSecondMvPred(BID_P_SND).getMv();
-				  break;
-			  case FW_P_FST:
-				  refIdx[0] = pcCU->getTmpFirstMvPred(FW_P_FST).getRefIdx();
-				  tempMV[0] = pcCU->getTmpFirstMvPred(FW_P_FST).getMv();
-				  break;
-			  case FW_P_SND:
-				  refIdx[0] = pcCU->getTmpFirstMvPred(FW_P_FST).getRefIdx();
-				  tempMV[0] = pcCU->getTmpFirstMvPred(FW_P_FST).getMv();
-				  break;
-			  default:
-				  assert(0);
-			  }
-#endif
-
-
-			  if (pcCU->getInterSkipmode(uiAbsPartIdx) - 3 < FW_P_FST)
-			  {
-				  pcCU->setInterDirSubParts(INTER_FORWARD, uiAbsPartIdx, uiDepth, 0);
-				  pcCU->getCUMvField(REF_PIC_0)->setAllMv(tempMV[0], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-				  pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(refIdx[0], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-
-				  // m_pcPrediction->motionCompensation(pcCU, &m_acMHPSkipYuvPred[REF_PIC_0], REF_PIC_0, 0);
-
-				  pcCU->setInterDirSubParts(INTER_FORWARD, uiAbsPartIdx, uiDepth, 0);
-				  pcCU->getCUMvField(REF_PIC_0)->setAllMv(tempMV[1], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-				  pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(refIdx[1], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-				  //m_pcPrediction->motionCompensation(pcCU, &m_acMHPSkipYuvPred[REF_PIC_1], REF_PIC_0, 0);
-
-				  //m_pcYuvReco->addAvg(&m_acMHPSkipYuvPred[0], &m_acMHPSkipYuvPred[1], uiPartAddr + pcCU->getZorderIdxInCU(), iRoiWidth, iRoiHeight, uiPartAddr + pcCU->getZorderIdxInCU());
-			  }
-			  else
-			  {
-				  pcCU->setInterDirSubParts(INTER_FORWARD, uiAbsPartIdx, uiDepth, 0);
-				  pcCU->getCUMvField(REF_PIC_0)->setAllMv(tempMV[0], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-				  pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(refIdx[0], SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-
-				  //m_pcPrediction->motionCompensation(pcCU, &m_acMHPSkipYuvPred[REF_PIC_0], REF_PIC_0, 0);
-
-				  //m_acMHPSkipYuvPred[REF_PIC_0].copyPartToPartYuv(m_pcYuvReco, uiPartAddr + pcCU->getZorderIdxInCU(), uiPartAddr + pcCU->getZorderIdxInCU(), iRoiWidth, iRoiHeight);
-			  }
-
-		  }
-#if F_MHPSKIP_SYC_DEBUG_2
-		  else
-		  {
-        {
-          TComMv cMvPredL0;
-          TComMvField cMvFieldPredL0;// = pcCU->getMvFieldPred(0, REF_PIC_0, 0);
-          //	pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvFieldPredL0, pcCU->getPartitionSize(0), 0, 0, 0);
-
-          TComCUMvField* ColCUMvField = pcCU->getPicture()->getPicHeader()->getRefPic(REF_PIC_0, 0)
-            ->getPicSym()->getDPBPerCtuData(pcCU->getAddr()).getCUMvField(REF_PIC_0); //col_ref col_mv 光删扫描存储方式
-
-
-          //TComMvField testpred;
-          //testpred = pcCU->getMvFieldPred(uiAbsPartIdx, eRefPic, iRefIdx);
-          //pAboveCU->getCUMvField(eRefPic)->getMv(uiAboveIdx)
-
-          //	TComCUMvField* ColCUMvField = pcCU->getCUMvField(REF_PIC_0);
-
-
-          Int ColRef = 0;
-          TComMv Colmv;
-          Int offset = 0;
-          Int curT, colT;
-          Int delta1, delta2;
-          delta1 = delta2 = 0;
-          UInt uiPartAddr = 0;
-          //uiBitSize = 
-          UInt blockshape_block_x, blockshape_block_y;
-          UInt  uiAbsPartIdxR = g_auiZscanToRaster[uiAbsPartIdx];
-          blockshape_block_x = pcCU->getWidth(uiAbsPartIdx) >> MIN_BLOCK_SIZE_IN_BIT;
-          blockshape_block_y = pcCU->getHeight(uiAbsPartIdx) >> MIN_BLOCK_SIZE_IN_BIT;
-          Int iPartIdx = 0;
-          Int iRoiWidth, iRoiHeight;
-          for (Int i = 0; i < 2; i++)
-          {
-            for (Int j = 0; j < 2; j++)
-            {
-              pcCU->getPartIndexAndSize(iPartIdx, uiPartAddr, iRoiWidth, iRoiHeight);
-              //如何设置offset;
-              offset = blockshape_block_x / 2 * i + pcCU->getPic()->getNumPartInWidth() * blockshape_block_y / 2 * j;
-              ColRef = ColCUMvField->getRefIdx(uiAbsPartIdxR + offset);
-              Colmv = ColCUMvField->getMv(uiAbsPartIdxR + offset);
-
-
-              if (ColRef >= 0)
-              {
-                curT = (2 * (pcCU->getPicture()->getPOC() - pcCU->getPicture()->getPicHeader()->getRefPOC(REF_PIC_0, 0)) + 512) % 512;
-                colT = (2 * (pcCU->getPicture()->getPicHeader()->getRefPOC(REF_PIC_0, 0) -
-                  pcCU->getPicture()->getPicHeader()->getRefPic(REF_PIC_0, 0)->getPicHeader()->getRefPOC(REF_PIC_0, ColRef)) + 512) % 512;
-                /* if (0 == img->num_of_references - 1 && he->background_reference_enable) {
-                curT = 1;
-                colT = 1;
-                }
-                if (refframe == img->num_of_references - 1 && he->background_reference_enable) {
-                colT = 1;
-                }*/ // 暂无
-
-                cMvPredL0.setHor(Clip3(-32768, 32767, ((long long int)(curT)* Colmv.getHor() * (MULTI / colT) + HALF_MULTI) >> OFFSET));
-                cMvPredL0.setVer(Clip3(-32768, 32767, ((long long int)(curT)* Colmv.getVer() * (MULTI / colT) + HALF_MULTI) >> OFFSET));
-
-                //scalingMV(cMvPredL0, Colmv, curT, colT);
-                cMvPredL0.setVer(cMvPredL0.getVer() - delta2);
-                cMvFieldPredL0.setMvField(cMvPredL0, 0);
-              }
-              else
-              {
-                cMvPredL0.setZero();
-                cMvFieldPredL0.setMvField(cMvPredL0, 0);
-              }
-              pcCU->getCUMvField(REF_PIC_0)->setAllMvField(cMvFieldPredL0, SIZE_NxN, uiAbsPartIdx + uiPartAddr, 0, uiDepth);
-              iPartIdx++;
-            }
-          }
-        }
-#if	inter_direct_skip_bug3
-			  Int           iNumPredDir = pcCU->getPicture()->isInterB() ? 2 : 1;
-#else
-			  Int           iNumPredDir = pcCU->getPicture()->isInterP() ? 1 : 2;
-#endif
-			  for (Int iRefPic = 0; iRefPic < iNumPredDir; iRefPic++)
-			  {
-				  RefPic eRefPic = (iRefPic ? REF_PIC_1 : REF_PIC_0); // llt
-				  Int w = pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic);
-				  // pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic)
-				  for (Int iRefIdxTemp = 0; iRefIdxTemp < 2; iRefIdxTemp++)
-				  {
-					  pcCU->setInterDirSubParts(iRefPic + 1, uiAbsPartIdx, uiDepth, 0);
-					  Int refIdx = (iRefIdxTemp == 0 ? 0 : pcCU->getInterSkipmode(uiAbsPartIdx));
-
-					  pcCU->getCUMvField(eRefPic)->setAllRefIdx(refIdx, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-				  }//end of refIdxnum
-				  Int refIdx = 0;
-				  pcCU->getCUMvField(eRefPic)->setAllRefIdx(refIdx, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-			  }
-		  }
-#endif
-  }
-#endif
-#if WRITE_INTERDIR
-	  decodeInterDirRD(pcCU, uiAbsPartIdx, uiDepth);
-#else
-      decodeInterDir( pcCU, uiAbsPartIdx, uiDepth );
-#endif
-#if RPS
+    if (pcCU->getPicture()->isInterF() || pcCU->getPicture()->isInterP())
+    {
+      UInt uiCurrPartNumQ = (pcCU->getPic()->getNumPartInCU() >> (uiDepth << 1)) >> 2;
+      memset(pcCU->getInterDir() + uiAbsPartIdx, 1, sizeof(UChar)*uiCurrPartNumQ << 2);
+    }
+    else if (pcCU->getPicture()->isInterB())
+    {
+      decodeInterDirRD(pcCU, uiAbsPartIdx, uiDepth);
+    }
     for (UInt uiRefListIdx = 0; uiRefListIdx < 2; uiRefListIdx++)
     {
       if (pcCU->getPicture()->getPicHeader()->getNumRefIdx(RefPic(uiRefListIdx)) > 0)
       {
-
-#if DIRECTSKIP_BUG_YQH
-		  if (pcCU->isSkip(uiAbsPartIdx) || pcCU->isDirect(uiAbsPartIdx))
-		  {
-#if F_MHPSKIP_SYC_DEBUG
-			  if (pcCU->getInterSkipmode(uiAbsPartIdx) <= 3)//not MHPSKIP
-			  {
-#endif
-				  Int	iRefIdx = 0;
-
-#if F_MHPSKIP_SYC_DEBUG
-				  if (uiRefListIdx == 0)
-				  {
-					  pcCU->getCUMvField(RefPic(uiRefListIdx))->setAllRefIdx(iRefIdx, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-				  }
-				  else
-				  {
-					  if (pcCU->getInterSkipmode(uiAbsPartIdx) != 0)
-					  {
-						  pcCU->getCUMvField(RefPic(uiRefListIdx))->setAllRefIdx(iRefIdx, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-					  }		  
-				  }		  
-#else
-
-
-#if B_RPS_BUG_820
-				  pcCU->getCUMvField(RefPic(uiRefListIdx))->setAllRefIdx(iRefIdx, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-
-#else
-				  pcCU->getCUMvField(REF_PIC_0)->setAllRefIdx(iRefIdx, SIZE_2Nx2N, uiAbsPartIdx, 0, uiDepth);
-#endif
-#endif
-
-#if F_MHPSKIP_SYC_DEBUG
-			  }
-#endif
-		  }
-		  else
-		  {
-			  decodeRef(pcCU, uiAbsPartIdx, uiDepth, RefPic(uiRefListIdx));
-		  }
-#else
-		  decodeRef(pcCU, uiAbsPartIdx, uiDepth, RefPic(uiRefListIdx));
-#endif
- 
-#if RD_DIRECT
-        if(!pcCU->isDirect(uiAbsPartIdx))
+        decodeRef(pcCU, uiAbsPartIdx, uiDepth, RefPic(uiRefListIdx));
+        if (pcCU->getPicture()->isInterF())
         {
-#if F_DHP_SYC
-			if (pcCU->getPicture()->isInterF())
-				decodeInterDHP(pcCU, uiAbsPartIdx, uiDepth);
-#endif
-#if DMH
-					if (pcCU->getPicture()->isInterF())
-					{
-						decodeDMHMode(pcCU, uiAbsPartIdx, uiDepth);
-					}
-#endif
-#if rd_mvd
-#else
-          decodeMvd(pcCU, uiAbsPartIdx, uiDepth, RefPic(uiRefListIdx));
-#endif
+          decodeInterDHP(pcCU, uiAbsPartIdx, uiDepth);
+          decodeDMHMode(pcCU, uiAbsPartIdx, uiDepth);
         }
-#else
-        decodeMvd(pcCU, uiAbsPartIdx, uiDepth, RefPic(uiRefListIdx));
-#endif
-       
       }
     }
-
-#if rd_mvd
-	if (!pcCU->isDirect(uiAbsPartIdx))
-	{
-		decodeMvd(pcCU, uiAbsPartIdx, uiDepth);
-	}
-#endif
-
-#else
-    if (pcCU->getPicture()->getRefPic(REF_PIC_0) != NULL) //if ( ref. frame list0 has at least 1 entry )
-    {
-      decodeMvd(pcCU, uiAbsPartIdx, uiDepth, REF_PIC_0);
-    }
-
-    if (pcCU->getPicture()->getRefPic(REF_PIC_1) != NULL) //if ( ref. frame list1 has at least 1 entry )
-    {
-      decodeMvd(pcCU, uiAbsPartIdx, uiDepth, REF_PIC_1);
-    }
-#endif
-  
+    decodeMvd(pcCU, uiAbsPartIdx, uiDepth);
   }
   else
   {
-#if ZHANGYI_INTRA_SDIP
-	  if (eMode == SIZE_NxN || eMode == SIZE_hNx2N || eMode == SIZE_2NxhN)
-#else
-	  if (eMode == SIZE_NxN)
-#endif
+    if (eMode == SIZE_NxN || eMode == SIZE_hNx2N || eMode == SIZE_2NxhN)
     {
-      UInt uiPartOffset = ( pcCU->getPic()->getNumPartInCU() >> ( pcCU->getDepth(uiAbsPartIdx) << 1 ) ) >> 2;
-      decodeIntraDir( pcCU, uiAbsPartIdx,                  uiDepth+1 );
-      decodeIntraDir( pcCU, uiAbsPartIdx + uiPartOffset,   uiDepth+1 );
-      decodeIntraDir( pcCU, uiAbsPartIdx + uiPartOffset*2, uiDepth+1 );
-      decodeIntraDir( pcCU, uiAbsPartIdx + uiPartOffset*3, uiDepth+1 );
+      UInt uiPartOffset = (pcCU->getPic()->getNumPartInCU() >> (pcCU->getDepth(uiAbsPartIdx) << 1)) >> 2;
+      decodeIntraDir(pcCU, uiAbsPartIdx, uiDepth + 1);
+      decodeIntraDir(pcCU, uiAbsPartIdx + uiPartOffset, uiDepth + 1);
+      decodeIntraDir(pcCU, uiAbsPartIdx + uiPartOffset * 2, uiDepth + 1);
+      decodeIntraDir(pcCU, uiAbsPartIdx + uiPartOffset * 3, uiDepth + 1);
     }
     else
     {
-      decodeIntraDir( pcCU, uiAbsPartIdx, uiDepth );
+      decodeIntraDir(pcCU, uiAbsPartIdx, uiDepth);
     }
-#if ZHANGYI_INTRA
-	if ( pcCU->getPicture()->getSPS()->getChromaFormat() != CHROMA_400 )
-	{
-#if	YQH_SPLIGFLAG_DEC && !niu_LeftPU_revise
-		decodeIntraDirCb(pcCU, uiAbsPartIdx, uiDepth+1);
-#else
-		decodeIntraDirCb(pcCU, uiAbsPartIdx, uiDepth);
-#if !ZHANGYI_INTRA_MODIFY
-		decodeIntraDirCr(pcCU, uiAbsPartIdx, uiDepth);
-#endif
-#endif
-	}
-#endif
+    if (pcCU->getPicture()->getSPS()->getChromaFormat() != CHROMA_400)
+    {
+      decodeIntraDirCb(pcCU, uiAbsPartIdx, uiDepth);
+    }
   }
 }
 #if F_DHP_SYC
@@ -858,6 +537,21 @@ Void TDecEntropy::decodeInterMHPSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt u
 	}
 }
 #endif
+
+#if	B_MHBSKIP_SYC
+Void TDecEntropy::decodeInterMHBSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
+{
+	assert(!pcCU->isIntra(uiAbsPartIdx));
+
+
+	//加上F帧，P帧的限制
+	if ((pcCU->isSkip(uiAbsPartIdx) || pcCU->isDirect(uiAbsPartIdx)))
+	{
+		m_pcEntropyDecoderIf->parseInterMHBSKIP(pcCU, uiAbsPartIdx, uiDepth);
+	}
+}
+#endif
+
 #if	inter_direct_skip_bug2
 Void TDecEntropy::decodeInterWSM(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 {
@@ -880,6 +574,14 @@ Void TDecEntropy::decodeInterWSM(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDep
 #if WRITE_INTERDIR
 Void TDecEntropy::decodeInterDirRD(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 {
+ 
+ #if B_SKIP_ZP
+  if (pcCU->getPicture()->isInterB() && ((pcCU->isSkip(uiAbsPartIdx)) || (pcCU->isDirect(uiAbsPartIdx))))
+ 	{
+ 		return;
+ 	}
+ #endif
+
 	//test
 	if (pcCU->getPicture()->isInterP() || pcCU->getPicture()->isInterF() || (pcCU->isSkip(uiAbsPartIdx)) || (pcCU->isDirect(uiAbsPartIdx)))
 	{
@@ -1023,7 +725,7 @@ Void TDecEntropy::decodeIntraDir( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDe
 Void TDecEntropy::decodeRef(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, RefPic eRefPic)
 {
 	Int iRefIdx = 0;
-	if (!pcCU->getInterDir(uiAbsPartIdx) & (1 << eRefPic))
+	if (!(pcCU->getInterDir(uiAbsPartIdx) & (1 << eRefPic)))
 	{
 		iRefIdx = NOT_VALID;
 	}
@@ -1054,6 +756,22 @@ Void TDecEntropy::decodeRef(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, R
 		}
 
 #endif
+#if YQH_B_INTER
+		else if (pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM)//因为Dec的代码机制，此段不会被用到
+		{
+			if (pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic) > 1)
+			{
+				m_pcEntropyDecoderIf->parseRefIdx(pcCU, iRefIdx, eRefPic);
+			}
+			else
+			{
+				iRefIdx = 0;
+			}
+			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
+			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 0, uiDepth);
+		}
+
+#endif
 		break;
 	}
 	case SIZE_2NxN:
@@ -1079,6 +797,22 @@ Void TDecEntropy::decodeRef(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, R
 			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 0, uiDepth);
 		}
 #endif
+#if YQH_B_INTER
+		else if (pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM)//因为Dec的代码机制，此段不会被用到
+		{
+			if (pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic) > 1)
+			{
+				m_pcEntropyDecoderIf->parseRefIdx(pcCU, iRefIdx, eRefPic);
+			}
+			else
+			{
+				iRefIdx = 0;
+			}
+			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
+			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 0, uiDepth);
+		}
+
+#endif
 		uiAbsPartIdx += (uiPartOffset << 1);
 		if ((pcCU->getInterDir(uiAbsPartIdx) & (1 << eRefPic)))
 		{
@@ -1100,6 +834,22 @@ Void TDecEntropy::decodeRef(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, R
 			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
 			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 1, uiDepth);
 		}
+#endif
+#if YQH_B_INTER
+		else if (pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM)//因为Dec的代码机制，此段不会被用到
+		{
+			if (pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic) > 1)
+			{
+				m_pcEntropyDecoderIf->parseRefIdx(pcCU, iRefIdx, eRefPic);
+			}
+			else
+			{
+				iRefIdx = 0;
+			}
+			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
+			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 1, uiDepth);
+		}
+
 #endif
 		break;
 	}
@@ -1126,7 +876,22 @@ Void TDecEntropy::decodeRef(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, R
 			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 0, uiDepth);
 		}
 #endif
+#if YQH_B_INTER
+		else if (pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM)//因为Dec的代码机制，此段不会被用到
+		{
+			if (pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic) > 1)
+			{
+				m_pcEntropyDecoderIf->parseRefIdx(pcCU, iRefIdx, eRefPic);
+			}
+			else
+			{
+				iRefIdx = 0;
+			}
+			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
+			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 0, uiDepth);
+		}
 
+#endif
 		uiAbsPartIdx += uiPartOffset;
 		if ((pcCU->getInterDir(uiAbsPartIdx) & (1 << eRefPic)))
 		{
@@ -1148,6 +913,22 @@ Void TDecEntropy::decodeRef(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, R
 			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
 			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 1, uiDepth);
 		}
+#endif
+#if YQH_B_INTER
+		else if (pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM)//因为Dec的代码机制，此段不会被用到
+		{
+			if (pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic) > 1)
+			{
+				m_pcEntropyDecoderIf->parseRefIdx(pcCU, iRefIdx, eRefPic);
+			}
+			else
+			{
+				iRefIdx = 0;
+			}
+			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
+			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 1, uiDepth);
+		}
+
 #endif
 		break;
 	}
@@ -1178,6 +959,23 @@ Void TDecEntropy::decodeRef(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, R
 				pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, iPartIdx, uiDepth);
 			}
 #endif
+#if YQH_B_INTER
+			else if (pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM)//因为Dec的代码机制，此段不会被用到
+			{
+				printf("ERROR：B INTER_SYM NxN\n");
+				if (pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic) > 1)
+				{
+					m_pcEntropyDecoderIf->parseRefIdx(pcCU, iRefIdx, eRefPic);
+				}
+				else
+				{
+					iRefIdx = 0;
+				}
+				PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
+				pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, iPartIdx, uiDepth);
+			}
+
+#endif
 			uiAbsPartIdx += uiPartOffset;
 		}
 
@@ -1206,6 +1004,22 @@ Void TDecEntropy::decodeRef(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, R
 			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 0, uiDepth);
 		}
 #endif
+#if YQH_B_INTER
+		else if (pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM)//因为Dec的代码机制，此段不会被用到
+		{
+			if (pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic) > 1)
+			{
+				m_pcEntropyDecoderIf->parseRefIdx(pcCU, iRefIdx, eRefPic);
+			}
+			else
+			{
+				iRefIdx = 0;
+			}
+			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
+			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 0, uiDepth);
+		}
+
+#endif
 		uiAbsPartIdx += (uiPartOffset >> 1);
 		if ((pcCU->getInterDir(uiAbsPartIdx) & (1 << eRefPic)))
 		{
@@ -1227,6 +1041,22 @@ Void TDecEntropy::decodeRef(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, R
 			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
 			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 1, uiDepth);
 		}
+#endif
+#if YQH_B_INTER
+		else if (pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM)//因为Dec的代码机制，此段不会被用到
+		{
+			if (pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic) > 1)
+			{
+				m_pcEntropyDecoderIf->parseRefIdx(pcCU, iRefIdx, eRefPic);
+			}
+			else
+			{
+				iRefIdx = 0;
+			}
+			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
+			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 1, uiDepth);
+		}
+
 #endif
 		break;
 	}
@@ -1253,6 +1083,22 @@ Void TDecEntropy::decodeRef(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, R
 			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 0, uiDepth);
 		}
 #endif
+#if YQH_B_INTER
+		else if (pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM)//因为Dec的代码机制，此段不会被用到
+		{
+			if (pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic) > 1)
+			{
+				m_pcEntropyDecoderIf->parseRefIdx(pcCU, iRefIdx, eRefPic);
+			}
+			else
+			{
+				iRefIdx = 0;
+			}
+			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
+			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 0, uiDepth);
+		}
+
+#endif
 		uiAbsPartIdx += (uiPartOffset << 1) + (uiPartOffset >> 1);
 		if ((pcCU->getInterDir(uiAbsPartIdx) & (1 << eRefPic)))
 		{
@@ -1274,6 +1120,22 @@ Void TDecEntropy::decodeRef(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, R
 			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
 			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 1, uiDepth);
 		}
+#endif
+#if YQH_B_INTER
+		else if (pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM)//因为Dec的代码机制，此段不会被用到
+		{
+			if (pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic) > 1)
+			{
+				m_pcEntropyDecoderIf->parseRefIdx(pcCU, iRefIdx, eRefPic);
+			}
+			else
+			{
+				iRefIdx = 0;
+			}
+			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
+			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 1, uiDepth);
+		}
+
 #endif
 		break;
 	}
@@ -1300,6 +1162,22 @@ Void TDecEntropy::decodeRef(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, R
 			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 0, uiDepth);
 		}
 #endif
+#if YQH_B_INTER
+		else if (pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM)//因为Dec的代码机制，此段不会被用到
+		{
+			if (pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic) > 1)
+			{
+				m_pcEntropyDecoderIf->parseRefIdx(pcCU, iRefIdx, eRefPic);
+			}
+			else
+			{
+				iRefIdx = 0;
+			}
+			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
+			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 0, uiDepth);
+		}
+
+#endif
 		uiAbsPartIdx += (uiPartOffset >> 2);
 		if ((pcCU->getInterDir(uiAbsPartIdx) & (1 << eRefPic)))
 		{
@@ -1321,6 +1199,22 @@ Void TDecEntropy::decodeRef(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, R
 			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
 			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 1, uiDepth);
 		}
+#endif
+#if YQH_B_INTER
+		else if (pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM)//因为Dec的代码机制，此段不会被用到
+		{
+			if (pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic) > 1)
+			{
+				m_pcEntropyDecoderIf->parseRefIdx(pcCU, iRefIdx, eRefPic);
+			}
+			else
+			{
+				iRefIdx = 0;
+			}
+			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
+			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 1, uiDepth);
+		}
+
 #endif
 		break;
 	}
@@ -1347,6 +1241,22 @@ Void TDecEntropy::decodeRef(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, R
 			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 0, uiDepth);
 		}
 #endif
+#if YQH_B_INTER
+		else if (pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM)//因为Dec的代码机制，此段不会被用到
+		{
+			if (pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic) > 1)
+			{
+				m_pcEntropyDecoderIf->parseRefIdx(pcCU, iRefIdx, eRefPic);
+			}
+			else
+			{
+				iRefIdx = 0;
+			}
+			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
+			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 0, uiDepth);
+		}
+
+#endif
 		uiAbsPartIdx += uiPartOffset + (uiPartOffset >> 2);
 		if ((pcCU->getInterDir(uiAbsPartIdx) & (1 << eRefPic)))
 		{
@@ -1368,6 +1278,22 @@ Void TDecEntropy::decodeRef(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth, R
 			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
 			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 1, uiDepth);
 		}
+#endif
+#if YQH_B_INTER
+		else if (pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM)//因为Dec的代码机制，此段不会被用到
+		{
+			if (pcCU->getPicture()->getPicHeader()->getNumRefIdx(eRefPic) > 1)
+			{
+				m_pcEntropyDecoderIf->parseRefIdx(pcCU, iRefIdx, eRefPic);
+			}
+			else
+			{
+				iRefIdx = 0;
+			}
+			PartSize ePartSize = pcCU->getPartitionSize(uiAbsPartIdx);
+			pcCU->getCUMvField(eRefPic)->setAllRefIdx(iRefIdx, ePartSize, uiAbsPartIdx, 1, uiDepth);
+		}
+
 #endif
 		break;
 	}
@@ -1388,7 +1314,7 @@ Void TDecEntropy::decodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 	{
 	case SIZE_2Nx2N:
 	{
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 0, uiDepth, REF_PIC_0);
 		}
@@ -1400,7 +1326,7 @@ Void TDecEntropy::decodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 	}
 	case SIZE_2NxN:
 	{
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 0, uiDepth, REF_PIC_0);
 		}
@@ -1410,7 +1336,7 @@ Void TDecEntropy::decodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 		}
 
 		uiAbsPartIdx += (uiPartOffset << 1);
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 1, uiDepth, REF_PIC_0);
 		}
@@ -1422,7 +1348,7 @@ Void TDecEntropy::decodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 	}
 	case SIZE_Nx2N:
 	{
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 0, uiDepth, REF_PIC_0);
 		}
@@ -1432,7 +1358,7 @@ Void TDecEntropy::decodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 		}
 
 		uiAbsPartIdx += uiPartOffset;
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 1, uiDepth, REF_PIC_0);
 		}
@@ -1446,7 +1372,7 @@ Void TDecEntropy::decodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 	{
 		for (Int iPartIdx = 0; iPartIdx < 4; iPartIdx++)
 		{
-			if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+      if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 			{
 				m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, iPartIdx, uiDepth, REF_PIC_0);
 			}
@@ -1460,7 +1386,7 @@ Void TDecEntropy::decodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 	}
 	case SIZE_2NxnU:
 	{
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 0, uiDepth, REF_PIC_0);
 		}
@@ -1469,7 +1395,7 @@ Void TDecEntropy::decodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 0, uiDepth, REF_PIC_1);
 		}
 		uiAbsPartIdx += (uiPartOffset >> 1);
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 1, uiDepth, REF_PIC_0);
 		}
@@ -1481,7 +1407,7 @@ Void TDecEntropy::decodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 	}
 	case SIZE_2NxnD:
 	{
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 0, uiDepth, REF_PIC_0);
 		}
@@ -1490,7 +1416,7 @@ Void TDecEntropy::decodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 0, uiDepth, REF_PIC_1);
 		}
 		uiAbsPartIdx += (uiPartOffset << 1) + (uiPartOffset >> 1);
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 1, uiDepth, REF_PIC_0);
 		}
@@ -1502,7 +1428,7 @@ Void TDecEntropy::decodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 	}
 	case SIZE_nLx2N:
 	{
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 0, uiDepth, REF_PIC_0);
 		}
@@ -1511,7 +1437,7 @@ Void TDecEntropy::decodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 0, uiDepth, REF_PIC_1);
 		}
 		uiAbsPartIdx += (uiPartOffset >> 2);
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 1, uiDepth, REF_PIC_0);
 		}
@@ -1523,7 +1449,7 @@ Void TDecEntropy::decodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 	}
 	case SIZE_nRx2N:
 	{
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 0, uiDepth, REF_PIC_0);
 		}
@@ -1532,7 +1458,7 @@ Void TDecEntropy::decodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth)
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 0, uiDepth, REF_PIC_1);
 		}
 		uiAbsPartIdx += uiPartOffset + (uiPartOffset >> 2);
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyDecoderIf->parseMvd(pcCU, uiAbsPartIdx, 1, uiDepth, REF_PIC_0);
 		}

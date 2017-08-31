@@ -223,6 +223,9 @@ public:
 #if	F_MHPSKIP_SYC
   Void codeInterMHPSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx);
 #endif
+#if B_MHBSKIP_SYC
+  Void codeInterMHBSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx);
+#endif
   #if YQH_INTRA
    Void codeTransSplitFlag( TComDataCU* pcCU, UInt uiAbsPartIdx );
 #endif
@@ -274,6 +277,9 @@ private:
 #endif
 #if F_MHPSKIP_SYC
   ContextModel3DBuffer m_cCUInterMHPSKIPSCModel;
+#endif
+#if B_MHBSKIP_SYC
+  ContextModel3DBuffer m_cCUInterMHBSKIPSCModel;
 #endif
   ContextModel3DBuffer m_cCUIntraDirSCModel;
 #if RPS

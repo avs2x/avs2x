@@ -41,14 +41,35 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 //////////////////////////////////
 //
 
+#define F_L1_FOR_DHP_SYC            1
+#define F_L1_FOR_MHPSKIP_SYC        1
+/*#define F_L1_FOR_WSM_SYC            1*/
+#define TEMP_FAST_DHP               1//DHP的亚像素搜索暂时调小，便于测试
+
+#define CLOSE_DESTROY_WHEN_DEC      0//已解决，强制为0，整理时可删
+#define F_DEBUG_828                 1//调试结束需要打开
+
+#define ZP_DEBUG_828                1//修改代码书写问题
+#define ZP_DEBUG_829                1//解决解码crash问题
+#define REFLISTBUG                  1 //增加F帧后向链
+#define POC_256_BUG                 0 //暂时关掉，还没验证
+
+
+
+#define B_MHBSKIP_SYC               0
+#define B_SKIP_ZP                   1
+
 #define F_MHPSKIP_SYC               1
 #define F_MHPSKIP_SYC_FIXED_MV      0//固定MHPSKIP的MV值
 #define F_MHPSKIP_SYC_DEBUG         1
 #define F_MHPSKIP_SYC_DEBUG_2       1
 
+#define F_DUAL_DEBUG                1
+
 
 #define F_DHP_SYC                   1
 #define F_DHP_SYC_OP                1//20170821
+#define F_DHP_SYC_OP_2              1//20170824
 
 #define F_DHP_SYC_MVD_DEBUG         1
 #define F_DHP_SYC_REF_DEBUG         1
@@ -56,16 +77,16 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #define F_DHP_SYC_NSQT              1
 
 
-#define debug_dir                  1
+#define debug_dir                  0
 #define rd_bipred                  1
-#define B_ME_REVISE                 1
-#define rd_bipred_YQH             1
+#define B_ME_REVISE                1
+#define rd_bipred_YQH              1
 #define rd_mvd                     1
 #define rd_sym                     1
 #define rd_mvd_yqh                 1
-#define WRITE_INTERDIR        1
-#define WLQ_Interdir_bug         1
-
+#define WRITE_INTERDIR             1
+#define WLQ_Interdir_bug           1
+#define YQH_B_INTER                1
 
 
 #define DIFSym_bug                       1
@@ -130,8 +151,8 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #define niu_PredInterChroma_Bug		1
 #define niu_NSQT_revise				1         // NSQT
 
-#define niu_CbpBit					1         // intra: a b
-#define niu_IntraCbp_revise			1		  // a b   同时打开
+#define niu_CbpBit					0         // intra: a b
+#define niu_IntraCbp_revise			0		  // a b   同时打开
 #define niu_NSQT_dec				1
 
 #define ZY_MODIFY_CBF				        1
@@ -212,6 +233,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #define INTERBUG                    1   //zp
 #define INTERTEST                   1
 
+#define PREDINFO                    1
 
 #define DPB                         1   //解码缓存
 #if DPB
@@ -219,7 +241,7 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #endif
 
 #define PSKIP                       1
-#define BSKIP                       0
+#define BSKIP                       1
 #define PBSKIP_BUG_YQH              0
 
 
@@ -253,8 +275,15 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSI
 #define DIRECTSKIP_BUG_YQH             1
 
 #if BSKIP
-#define DIRECTION                 4
+#define DIRECTION                4
 #endif
+#if B_MHBSKIP_SYC
+#define DS_FORWARD               4
+#define DS_BACKWARD              2
+#define DS_SYM                   3
+#define DS_BID                   1
+#endif
+
 #if PSKIP
 #define MH_PSKIP_NUM             4
 #define NUM_OFFSET               0

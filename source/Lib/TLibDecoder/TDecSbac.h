@@ -87,7 +87,11 @@ public:
   Void  parsePPS                  ( TComPPS* pcPPS         );
 #endif
 #if AVS3_PIC_HEADER_ZL
-  Void  parsePicHeader            ( TComPicHeader*& rpcPicHeader   );
+  Void  parsePicHeader            ( TComPicHeader*& rpcPicHeader   
+#if POC_256_BUG
+	  , Int prevTid0POC
+#endif  
+	  );
 #endif
 #if AVS3_SLICE_HEADER_SYC
   Void TDecSbac::parsePictureHeader (TComPicture*& rpcPicture, TComPicHeader*& rpcPicHeader);
@@ -203,6 +207,9 @@ public:
 #if	F_MHPSKIP_SYC
   Void  parseInterMHPSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth);
 #endif
+#if	B_MHBSKIP_SYC
+  Void  parseInterMHBSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth);
+#endif
 private:
   
   ContextModel3DBuffer m_cCUSplitFlagSCModel;
@@ -220,6 +227,9 @@ private:
 #endif
 #if F_MHPSKIP_SYC
 	ContextModel3DBuffer m_cCUInterMHPSKIPSCModel;
+#endif
+#if B_MHBSKIP_SYC
+	ContextModel3DBuffer m_cCUInterMHBSKIPSCModel;
 #endif
 #if F_DHP_SYC
 	ContextModel3DBuffer m_cCUInterDHPSCModel;

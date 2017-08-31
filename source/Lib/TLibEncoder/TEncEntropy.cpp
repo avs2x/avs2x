@@ -232,6 +232,10 @@ Void TEncEntropy::encodePredInfo( TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD 
 	if (pcCU->getPicture()->getPictureType() == F_PICTURE && (pcCU->getInterSkipmode(uiAbsPartIdx) > 3 || pcCU->getInterSkipmode(uiAbsPartIdx) == 0))
 		encodeInterMHPSKIP(pcCU, uiAbsPartIdx, bRD);
 #endif
+#if B_MHBSKIP_SYC
+	else if (pcCU->getPicture()->getPictureType() == B_PICTURE )
+		encodeInterMHBSKIP(pcCU, uiAbsPartIdx, bRD);
+#endif
 #if  !B_RPS_BUG_818
     encodeInterDir(pcCU, uiAbsPartIdx, bRD);
 #endif
@@ -273,6 +277,10 @@ Void TEncEntropy::encodePredInfo( TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD 
 #if F_MHPSKIP_SYC
 	  if (pcCU->getPicture()->getPictureType() == F_PICTURE && (pcCU->getInterSkipmode(uiAbsPartIdx) > 3 || pcCU->getInterSkipmode(uiAbsPartIdx) == 0))
 		  encodeInterMHPSKIP(pcCU, uiAbsPartIdx, bRD);
+#endif
+#if B_MHBSKIP_SYC
+	  else if (pcCU->getPicture()->getPictureType() == B_PICTURE)
+		  encodeInterMHBSKIP(pcCU, uiAbsPartIdx, bRD);
 #endif
 #if WRITE_INTERDIR
 	  encodeInterDirRD(pcCU, uiAbsPartIdx, bRD);
@@ -580,6 +588,25 @@ Void TEncEntropy::encodeInterMHPSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool b
 	if ((pcCU->isSkip(uiAbsPartIdx) || pcCU->isDirect(uiAbsPartIdx)) && pcCU->getPicture()->getSPS()->getMultiHypothesisSkipEnableFlag() == true)
 	{
 		m_pcEntropyCoderIf->codeInterMHPSKIP(pcCU, uiAbsPartIdx);
+	}
+
+}
+#endif
+#if B_MHBSKIP_SYC
+Void TEncEntropy::encodeInterMHBSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD)
+{
+	assert(!pcCU->isIntra(uiAbsPartIdx));
+
+	if (bRD)
+		uiAbsPartIdx = 0;
+
+	//pcPicHeader->getPictureType() == P_PICTURE&&pcPicHeader->getSeqHeader()->getWeightedSkipEnableFlag() == true
+
+	//pcCU->getPicture()->getPicHeader()->getInterSkipmodeNumber()
+	//加上F帧，P帧的限制
+	if ((pcCU->isSkip(uiAbsPartIdx) || pcCU->isDirect(uiAbsPartIdx)) )
+	{
+		m_pcEntropyCoderIf->codeInterMHBSKIP(pcCU, uiAbsPartIdx);
 	}
 
 }
@@ -926,7 +953,7 @@ Void TEncEntropy::encodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD)
 	{
 	case SIZE_2Nx2N:
 	{
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_0);
 		}
@@ -939,7 +966,7 @@ Void TEncEntropy::encodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD)
 
 	case SIZE_2NxN:
 	{
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_0);
 		}
@@ -949,7 +976,7 @@ Void TEncEntropy::encodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD)
 		}
 
 		uiAbsPartIdx += uiPartOffset << 1;
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_0);
 		}
@@ -962,7 +989,7 @@ Void TEncEntropy::encodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD)
 
 	case SIZE_Nx2N:
 	{
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_0);
 		}
@@ -972,7 +999,7 @@ Void TEncEntropy::encodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD)
 		}
 
 		uiAbsPartIdx += uiPartOffset;
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_0);
 		}
@@ -987,7 +1014,7 @@ Void TEncEntropy::encodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD)
 	{
 		for (Int iPartIdx = 0; iPartIdx < 4; iPartIdx++)
 		{
-			if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+      if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 			{
 				m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_0);
 			}
@@ -1001,7 +1028,7 @@ Void TEncEntropy::encodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD)
 	}
 	case SIZE_2NxnU:
 	{
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_0);
 		}
@@ -1012,7 +1039,7 @@ Void TEncEntropy::encodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD)
 
 		uiAbsPartIdx += (uiPartOffset >> 1);
 
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_0);
 		}
@@ -1025,7 +1052,7 @@ Void TEncEntropy::encodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD)
 	}
 	case SIZE_2NxnD:
 	{
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_0);
 		}
@@ -1036,7 +1063,7 @@ Void TEncEntropy::encodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD)
 
 		uiAbsPartIdx += (uiPartOffset << 1) + (uiPartOffset >> 1);
 
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_0);
 		}
@@ -1049,7 +1076,7 @@ Void TEncEntropy::encodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD)
 	}
 	case SIZE_nLx2N:
 	{
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_0);
 		}
@@ -1057,10 +1084,8 @@ Void TEncEntropy::encodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD)
 		{
 			m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_1);
 		}
-
 		uiAbsPartIdx += (uiPartOffset >> 2);
-
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_0);
 		}
@@ -1068,12 +1093,11 @@ Void TEncEntropy::encodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD)
 		{
 			m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_1);
 		}
-
 		break;
 	}
 	case SIZE_nRx2N:
 	{
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_0);
 		}
@@ -1084,7 +1108,7 @@ Void TEncEntropy::encodeMvd(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD)
 
 		uiAbsPartIdx += uiPartOffset + (uiPartOffset >> 2);
 
-		if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID)
+    if (pcCU->getInterDir(uiAbsPartIdx) == INTER_FORWARD || pcCU->getInterDir(uiAbsPartIdx) == INTER_SYM || pcCU->getInterDir(uiAbsPartIdx) == INTER_BID || pcCU->getInterDir(uiAbsPartIdx) == INTER_DUAL)
 		{
 			m_pcEntropyCoderIf->codeMvd(pcCU, uiAbsPartIdx, REF_PIC_0);
 		}

@@ -126,11 +126,18 @@ protected:
 #if inter_direct_skip_bug
 	Double	xCheckRDCostSkip_NO_QT(TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, PartSize ePartSize, Double minRdCostD, Double split_cost_down, Double split_cost_up, Double splitRdCost, Bool Flag);
 #endif
+
+#if B_MHBSKIP_SYC
+#if F_MHPSKIP_SYC
+	Double  xCheckRDCostMHSkip(TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, PartSize ePartSize, Double minRdCostD, Double split_cost_down, Double split_cost_up, Double splitRdCost, Bool Flag);
+	Double	xCheckRDCostMHSkip_NO_QT(TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, PartSize ePartSize, Double minRdCostD, Double split_cost_down, Double split_cost_up, Double splitRdCost, Bool Flag);
+#endif
+#else
 #if F_MHPSKIP_SYC
 	Double  xCheckRDCostMHPSkip(TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, PartSize ePartSize, Double minRdCostD, Double split_cost_down, Double split_cost_up, Double splitRdCost, Bool Flag);
 	Double	xCheckRDCostMHPSkip_NO_QT(TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, PartSize ePartSize, Double minRdCostD, Double split_cost_down, Double split_cost_up, Double splitRdCost, Bool Flag);
 #endif
-
+#endif
 #if WLQ_CUSplitFlag_inter
 #if WLQ_rdcost
 		Double  xCheckRDCostInter(TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, PartSize ePartSize, Double minRdCostD, Double split_cost_down, Double split_cost_up, Double splitRdCost, Bool Flag);

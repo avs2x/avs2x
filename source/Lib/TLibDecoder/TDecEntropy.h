@@ -141,9 +141,17 @@ public:
   Void    decodePPS                   ( TComPPS* pcPPS     )    { m_pcEntropyDecoderIf->parsePPS(pcPPS);                    }
 #endif
 #if AVS3_PIC_HEADER_ZL
-  Void    decodePicHeader             ( TComPicHeader*& rpcPicHeader )  
+  Void    decodePicHeader             ( TComPicHeader*& rpcPicHeader 
+#if POC_256_BUG
+	  , Int prevTid0POC	//Used this to reallocate POC larger than 255
+#endif
+	  )  
   { 
-    m_pcEntropyDecoderIf->parsePicHeader(rpcPicHeader); 
+#if POC_256_BUG
+	  m_pcEntropyDecoderIf->parsePicHeader(rpcPicHeader, prevTid0POC);
+#else
+	  m_pcEntropyDecoderIf->parsePicHeader(rpcPicHeader);
+#endif
 #if AVS3_EXTENSION_LWJ
     UInt uiCode, uiCode1, uiCode2, uiCode3;
 #if AVS3_EXTENSION_DEBUG_SYC
@@ -246,6 +254,9 @@ public:
 #endif
 #if F_MHPSKIP_SYC
   Void decodeInterMHPSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth);
+#endif
+#if B_MHBSKIP_SYC
+  Void decodeInterMHBSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth);
 #endif
   Void decodePartSize          ( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth );
 

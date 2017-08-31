@@ -77,7 +77,9 @@ private:
   TDecEntropy             m_cEntropyDecoder;
   TDecSbac                m_cSbacDecoder;
   TDecLoopFilter          m_cLoopFilter;
-
+#if POC_256_BUG
+  UInt					  m_prevTid0POC;
+#endif
 public:
   TDecTop();
   virtual ~TDecTop();
@@ -96,6 +98,9 @@ protected:
   Void  xRemovePicBuffer(TComPicHeader* m_pcPicHeader);
 #else
   Void  xGetNewPicBuffer(TComPicture* pcPicture, TComPic*& rpcPic);
+#endif
+#if POC_256_BUG
+  Void  xUpdatePreviousTid0POC(TComPicHeader *pcPictureHeader);
 #endif
  // Void  xGetNewPicBuffer  (TComPicture* pcPicture, TComPic*& rpcPic);
   Void  xUpdateGopSize    (TComPicture* pcPicture);

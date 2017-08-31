@@ -78,7 +78,7 @@
 
 #define NUM_INTER_WSM_CTX             4       ///< number of context models for inter prediction direction  /* in OV */
 
-#if F_MHPSKIP_SYC
+#if F_MHPSKIP_SYC || B_MHBSKIP_SYC
 #define NUM_INTER_MHPSKIP_CTX         4       ///< number of context models for F MHPSkip  /* in OV */
 #endif
 

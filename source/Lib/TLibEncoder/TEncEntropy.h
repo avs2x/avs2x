@@ -120,6 +120,9 @@ public:
 #if F_MHPSKIP_SYC
   Void encodeInterMHPSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD);
 #endif
+#if B_MHBSKIP_SYC
+  Void encodeInterMHBSKIP(TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD);
+#endif
 #if ZHANGYI_INTRA
   Void encodeIntraPuTypeIndex (TComDataCU* pcCU, UInt uiAbsPartIdx, Bool bRD = false );
   Void encodeIntraDirForRDO( Int uiIntraDirValue );
